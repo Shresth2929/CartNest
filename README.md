@@ -81,6 +81,7 @@ See [QA results](docs/QA_RESULTS.md) for the checks completed for this revision,
 - [Entity relationship diagram](docs/ER_DIAGRAM.md)
 - [API documentation](docs/API.md)
 - [Technical report and security notes](docs/TECHNICAL_REPORT.md)
+- [Production deployment integration](docs/DEPLOYMENT.md)
 - [Demo script](docs/DEMO_SCRIPT.md)
 - [Technical interview cheat sheet](docs/INTERVIEW_CHEAT_SHEET.md)
 - [QA results and known limitations](docs/QA_RESULTS.md)

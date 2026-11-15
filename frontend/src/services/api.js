@@ -1,4 +1,10 @@
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { buildApiUrl, normalizeApiBaseUrl } from '../utils/apiUrl';
+
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+const defaultApiUrl = import.meta.env.DEV
+  ? '/api'
+  : 'https://cartnest-wlg9.onrender.com/api';
+const BASE_URL = normalizeApiBaseUrl(configuredApiUrl || defaultApiUrl);
 
 /**
  * Universal API client for CartNest
@@ -33,7 +39,7 @@ async function request(endpoint, options = {}) {
     config.body = JSON.stringify(body);
   }
 
-  const url = `${BASE_URL}${endpoint}`;
+  const url = buildApiUrl(BASE_URL, endpoint);
   let response;
 
   try {

@@ -1,4 +1,4 @@
-const { clientUrl } = require('./config/env');
+const { clientOrigins } = require('./config/env');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -11,8 +11,11 @@ const app = express();
 
 // Middlewares
 app.disable('x-powered-by');
+const allowedClientOrigins = new Set(clientOrigins);
 app.use(cors({
-  origin: clientUrl,
+  origin(origin, callback) {
+    callback(null, Boolean(origin && allowedClientOrigins.has(origin)));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
