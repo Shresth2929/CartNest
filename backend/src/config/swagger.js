@@ -121,6 +121,62 @@ const swaggerDocument = {
           hasUnavailableItems: { type: 'boolean', example: false },
         },
       },
+      OrderItem: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          productId: { type: 'string', format: 'uuid' },
+          variantId: { type: 'string', format: 'uuid', nullable: true },
+          productName: { type: 'string' },
+          variantName: { type: 'string', nullable: true },
+          unitPrice: { type: 'number', example: 2499.00 },
+          quantity: { type: 'integer', example: 1 },
+          subtotal: { type: 'number', example: 2499.00 },
+        },
+      },
+      Payment: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          orderId: { type: 'string', format: 'uuid' },
+          paymentMethod: { type: 'string', example: 'CARD' },
+          amount: { type: 'number', example: 2948.82 },
+          status: { type: 'string', enum: ['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'] },
+          transactionId: { type: 'string', example: 'TXN-SIM-20261115-001' },
+          failureReason: { type: 'string', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      Order: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          orderNumber: { type: 'string', example: 'CN-M3X89-2045' },
+          userId: { type: 'string', format: 'uuid' },
+          status: { type: 'string', enum: ['PLACED', 'PAID', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+          subtotal: { type: 'number', example: 2499.00 },
+          tax: { type: 'number', example: 449.82 },
+          shippingFee: { type: 'number', example: 0.00 },
+          discount: { type: 'number', example: 0.00 },
+          total: { type: 'number', example: 2948.82 },
+          shippingAddressId: { type: 'string', format: 'uuid' },
+          idempotencyKey: { type: 'string', nullable: true },
+          notes: { type: 'string', nullable: true },
+          items: { type: 'array', items: { $ref: '#/components/schemas/OrderItem' } },
+          payments: { type: 'array', items: { $ref: '#/components/schemas/Payment' } },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      CheckoutRequest: {
+        type: 'object',
+        required: ['shippingAddressId'],
+        properties: {
+          shippingAddressId: { type: 'string', format: 'uuid' },
+          notes: { type: 'string', example: 'Leave with security' },
+          paymentMethod: { type: 'string', enum: ['CARD', 'UPI', 'NET_BANKING', 'COD'], default: 'CARD' },
+          paymentSimulation: { type: 'string', enum: ['SUCCESS', 'FAILED'], default: 'SUCCESS' },
+        },
+      },
     },
   },
   paths: {
@@ -402,6 +458,120 @@ const swaggerDocument = {
         responses: {
           200: { description: 'Item removed from cart' },
           404: { description: 'Item not found in cart' },
+        },
+      },
+    },
+    '/checkout': {
+      post: {
+        tags: ['Checkout & Orders'],
+        summary: 'Process transactional checkout with idempotency and atomic stock deduction',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: 'Idempotency-Key',
+            in: 'header',
+            required: false,
+            schema: { type: 'string' },
+            description: 'Unique client-supplied idempotency key (UUID or string) to prevent duplicate orders on retry',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/CheckoutRequest' },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: 'Order placed, payment confirmed and cart cleared successfully',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ApiResponseSuccess' } } },
+          },
+          200: { description: 'Idempotent replay of previously confirmed order' },
+          400: { description: 'Empty cart, insufficient stock, or simulated payment failure' },
+          409: { description: 'Same idempotency key with conflicting request payload' },
+        },
+      },
+    },
+    '/orders': {
+      get: {
+        tags: ['Checkout & Orders'],
+        summary: 'List customer orders with status filter and pagination',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['PLACED', 'PAID', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } },
+        ],
+        responses: {
+          200: { description: 'Paginated customer orders' },
+        },
+      },
+    },
+    '/orders/{id}': {
+      get: {
+        tags: ['Checkout & Orders'],
+        summary: 'Retrieve single order details',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Order details with items, payment and shipping address' },
+          404: { description: 'Order not found' },
+        },
+      },
+    },
+    '/orders/{id}/cancel': {
+      post: {
+        tags: ['Checkout & Orders'],
+        summary: 'Cancel an eligible order (PLACED, PAID, PACKED) and restore stock exactly once',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  reason: { type: 'string', example: 'Changed my mind' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Order cancelled, inventory restored, payment marked as refunded' },
+          400: { description: 'Order is not in a cancellable status or is already cancelled' },
+          404: { description: 'Order not found' },
+        },
+      },
+    },
+    '/orders/{id}/status': {
+      patch: {
+        tags: ['Checkout & Orders'],
+        summary: 'Admin-only: update order status following valid state transition rules',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: {
+                  status: { type: 'string', enum: ['PLACED', 'PAID', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+                  notes: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Order status updated' },
+          400: { description: 'Invalid state machine transition' },
+          403: { description: 'Requires ADMIN privilege' },
         },
       },
     },
