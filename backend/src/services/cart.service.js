@@ -34,7 +34,7 @@ class CartService {
       const itemSubtotal = Number((unitPrice * item.quantity).toFixed(2));
 
       const availableStock = item.variant ? item.variant.stock : item.product.stock;
-      const isAvailable = item.product.isActive && availableStock >= item.quantity;
+      const isAvailable = item.product.isActive && item.product.category.isActive && availableStock >= item.quantity;
 
       if (!isAvailable) {
         hasUnavailableItems = true;
@@ -90,6 +90,7 @@ class CartService {
                 stock: true,
                 isActive: true,
                 sku: true,
+                category: { select: { isActive: true } },
               },
             },
             variant: {
@@ -114,11 +115,11 @@ class CartService {
     const cart = await this.getOrCreateCart(userId);
 
     // 1. Verify product existence and status
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+    const product = await prisma.product.findFirst({
+      where: { id: productId, isActive: true, category: { isActive: true } },
     });
 
-    if (!product || !product.isActive) {
+    if (!product) {
       throw ApiError.badRequest('Product is not available for purchase');
     }
 
@@ -182,7 +183,7 @@ class CartService {
     const cartItem = await prisma.cartItem.findFirst({
       where: { id: itemId, cartId: cart.id },
       include: {
-        product: true,
+        product: { include: { category: { select: { isActive: true } } } },
         variant: true,
       },
     });
@@ -191,7 +192,7 @@ class CartService {
       throw ApiError.notFound('Cart item not found in your cart');
     }
 
-    if (!cartItem.product.isActive) {
+    if (!cartItem.product.isActive || !cartItem.product.category.isActive) {
       throw ApiError.badRequest('This product is no longer active');
     }
 

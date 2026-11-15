@@ -1,125 +1,57 @@
 const adminService = require('../services/admin.service');
 const { sendSuccess } = require('../utils/response');
 
-// Dashboard
-exports.getDashboard = async (req, res, next) => {
+const handle = (message, action) => async (req, res, next) => {
   try {
-    const data = await adminService.getDashboardMetrics();
-    sendSuccess(res, data, 'Dashboard metrics');
-  } catch (err) { next(err); }
-};
-
-// Orders
-exports.getOrders = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 20, status, search } = req.query;
-    const data = await adminService.getOrders({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      status,
-      search,
+    const result = await action(req);
+    const data = result && Object.prototype.hasOwnProperty.call(result, 'data') ? result.data : result;
+    const meta = result && result.pagination ? result.pagination : null;
+    return sendSuccess(res, {
+      statusCode: result?.statusCode || 200,
+      message,
+      data,
+      meta,
     });
-    sendSuccess(res, data, 'Orders retrieved');
-  } catch (err) { next(err); }
+  } catch (error) {
+    return next(error);
+  }
 };
 
-exports.updateOrderStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const order = await adminService.updateOrderStatus(id, status);
-    sendSuccess(res, { order }, 'Order status updated');
-  } catch (err) { next(err); }
-};
+exports.getDashboard = handle('Dashboard metrics retrieved', () => adminService.getDashboardMetrics());
+exports.getReports = handle('Reports retrieved', () => adminService.getReports());
 
-// Products
-exports.getProducts = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 20, search, categoryId, isActive } = req.query;
-    const data = await adminService.getProducts({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      search,
-      categoryId,
-      isActive: isActive !== undefined ? isActive === 'true' : undefined,
-    });
-    sendSuccess(res, data, 'Products retrieved');
-  } catch (err) { next(err); }
-};
+exports.getOrders = handle('Orders retrieved', (req) => adminService.getOrders(req.query));
+exports.getOrder = handle('Order retrieved', (req) => adminService.getOrderById(req.params.id));
+exports.updateOrderStatus = handle('Order status updated', (req) =>
+  adminService.updateOrderStatus(req.params.id, req.body, req.user.id));
 
-exports.createProduct = async (req, res, next) => {
-  try {
-    const product = await adminService.createProduct(req.body);
-    sendSuccess(res, { product }, 'Product created', 201);
-  } catch (err) { next(err); }
-};
+exports.getProducts = handle('Products retrieved', (req) => adminService.getProducts(req.query));
+exports.createProduct = handle('Product created', async (req) => ({
+  statusCode: 201,
+  data: await adminService.createProduct(req.body, req.user.id),
+}));
+exports.updateProduct = handle('Product updated', (req) =>
+  adminService.updateProduct(req.params.id, req.body, req.user.id));
+exports.deleteProduct = handle('Product deactivated', (req) =>
+  adminService.deactivateProduct(req.params.id, req.user.id));
 
-exports.updateProduct = async (req, res, next) => {
-  try {
-    const product = await adminService.updateProduct(req.params.id, req.body);
-    sendSuccess(res, { product }, 'Product updated');
-  } catch (err) { next(err); }
-};
+exports.getCategories = handle('Categories retrieved', () => adminService.getCategories());
+exports.createCategory = handle('Category created', async (req) => ({
+  statusCode: 201,
+  data: await adminService.createCategory(req.body, req.user.id),
+}));
+exports.updateCategory = handle('Category updated', (req) =>
+  adminService.updateCategory(req.params.id, req.body, req.user.id));
+exports.deleteCategory = handle('Category deleted', (req) =>
+  adminService.deleteCategory(req.params.id, req.user.id));
 
-exports.deleteProduct = async (req, res, next) => {
-  try {
-    const result = await adminService.deleteProduct(req.params.id);
-    sendSuccess(res, result, result.message);
-  } catch (err) { next(err); }
-};
+exports.getInventory = handle('Inventory retrieved', (req) => adminService.getInventory(req.query));
+exports.adjustInventory = handle('Inventory adjusted', (req) =>
+  adminService.adjustInventory(req.body, req.user.id));
+exports.getInventoryMovements = handle('Inventory movements retrieved', (req) =>
+  adminService.getInventoryMovements(req.query));
 
-// Categories
-exports.getCategories = async (req, res, next) => {
-  try {
-    const categories = await adminService.getCategories();
-    sendSuccess(res, { categories }, 'Categories retrieved');
-  } catch (err) { next(err); }
-};
+exports.getCustomers = handle('Customers retrieved', (req) => adminService.getCustomers(req.query));
+exports.getCustomer = handle('Customer retrieved', (req) => adminService.getCustomerById(req.params.id));
 
-exports.createCategory = async (req, res, next) => {
-  try {
-    const category = await adminService.createCategory(req.body);
-    sendSuccess(res, { category }, 'Category created', 201);
-  } catch (err) { next(err); }
-};
-
-exports.updateCategory = async (req, res, next) => {
-  try {
-    const category = await adminService.updateCategory(req.params.id, req.body);
-    sendSuccess(res, { category }, 'Category updated');
-  } catch (err) { next(err); }
-};
-
-exports.deleteCategory = async (req, res, next) => {
-  try {
-    const result = await adminService.deleteCategory(req.params.id);
-    sendSuccess(res, result, result.message);
-  } catch (err) { next(err); }
-};
-
-// Customers
-exports.getCustomers = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 20, search } = req.query;
-    const data = await adminService.getCustomers({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      search,
-    });
-    sendSuccess(res, data, 'Customers retrieved');
-  } catch (err) { next(err); }
-};
-
-// Audit Logs
-exports.getAuditLogs = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 30, action, userId } = req.query;
-    const data = await adminService.getAuditLogs({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      action,
-      userId,
-    });
-    sendSuccess(res, data, 'Audit logs retrieved');
-  } catch (err) { next(err); }
-};
+exports.getAuditLogs = handle('Audit logs retrieved', (req) => adminService.getAuditLogs(req.query));

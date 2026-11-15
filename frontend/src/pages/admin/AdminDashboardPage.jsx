@@ -1,178 +1,180 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
+} from 'recharts';
+import { AlertTriangle, ArrowUpRight, DollarSign, Package, ShoppingCart, Users } from 'lucide-react';
+import Badge from '../../components/common/Badge';
 import api from '../../services/api';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell, Legend,
-} from 'recharts';
-import { ShoppingCart, Package, Users, DollarSign, TrendingUp, Clock } from 'lucide-react';
+  AdminCard, AdminEmpty, AdminError, AdminLoading, AdminPageHeader, formatCurrency,
+} from '../../components/admin/AdminUi';
 
 const STATUS_COLORS = {
-  PLACED: '#6366f1',
-  PAID: '#3b82f6',
-  PACKED: '#f59e0b',
-  SHIPPED: '#8b5cf6',
-  DELIVERED: '#10b981',
-  CANCELLED: '#ef4444',
+  PLACED: '#c0842d',
+  PAID: '#3c6e57',
+  PACKED: '#6184a7',
+  SHIPPED: '#6f67a8',
+  DELIVERED: '#2f8062',
+  CANCELLED: '#bd5b55',
 };
 
-function KPICard({ title, value, icon: Icon, color, sub }) {
+function MetricCard({ label, value, icon: Icon, detail }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-start gap-4">
-      <div className={`rounded-lg p-3 ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
+    <AdminCard className="p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-500">{label}</p>
+          <p className="mt-2 text-2xl font-bold text-charcoal-900">{value}</p>
+          <p className="mt-1 text-xs text-charcoal-500">{detail}</p>
+        </div>
+        <span className="rounded-lg bg-forest-50 p-2.5 text-forest-800">
+          <Icon className="h-5 w-5" />
+        </span>
       </div>
-      <div>
-        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{title}</p>
-        <p className="text-2xl font-bold text-charcoal-800 mt-0.5">{value}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-      </div>
-    </div>
+    </AdminCard>
   );
 }
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
+
+  const loadDashboard = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await api.get('/admin/dashboard');
+      setData(response.data);
+    } catch (requestError) {
+      setError(requestError.message || 'Dashboard data could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    api.get('/admin/dashboard')
-      .then((res) => setData(res.data.data))
-      .catch((err) => setError(err.response?.data?.message || 'Failed to load dashboard'))
-      .finally(() => setLoading(false));
+    loadDashboard();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 border-4 border-forest-600 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  if (loading) return <AdminLoading label="Loading dashboard" />;
+  if (error) return <AdminError message={error} onRetry={loadDashboard} />;
+  if (!data) return <AdminEmpty>Dashboard data is not available.</AdminEmpty>;
 
-  if (error) {
-    return <div className="text-red-600 bg-red-50 p-4 rounded-lg">{error}</div>;
-  }
-
-  const { summary, recentOrders, topProducts, salesByDay, ordersByStatus } = data;
-
-  const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+  const summary = data.summary;
+  const chartDays = data.salesByDay.map((day) => ({
+    ...day,
+    label: new Date(`${day.date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+  }));
+  const orderStatusData = data.ordersByStatus.map((row) => ({ ...row, fill: STATUS_COLORS[row.status] || '#9ca3af' }));
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-charcoal-800">Dashboard</h1>
+      <AdminPageHeader
+        title="Dashboard"
+        description="A live view of sales, orders, customers and catalogue health."
+        action={<Link to="/admin/reports" className="inline-flex items-center gap-2 text-sm font-semibold text-forest-800 hover:underline">Open reports <ArrowUpRight className="h-4 w-4" /></Link>}
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total Revenue" value={fmt(summary.totalRevenue)} icon={DollarSign} color="bg-forest-600" />
-        <KPICard title="Total Orders" value={summary.totalOrders} icon={ShoppingCart} color="bg-indigo-500" />
-        <KPICard title="Products" value={summary.totalProducts} icon={Package} color="bg-amber-500" />
-        <KPICard title="Customers" value={summary.totalCustomers} icon={Users} color="bg-blue-500" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Eligible revenue" value={formatCurrency(summary.totalRevenue)} icon={DollarSign} detail="Paid, non-cancelled orders" />
+        <MetricCard label="Total orders" value={summary.totalOrders} icon={ShoppingCart} detail="All recorded statuses" />
+        <MetricCard label="Customers" value={summary.totalCustomers} icon={Users} detail="Registered customer accounts" />
+        <MetricCard label="Active products" value={summary.totalActiveProducts} icon={Package} detail="Available in the catalogue" />
+        <MetricCard label={`Low stock (≤${summary.lowStockThreshold})`} value={summary.lowStockProducts} icon={AlertTriangle} detail="Active products needing review" />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Sales by Day */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-forest-600" />
-            <h2 className="font-semibold text-charcoal-800 text-sm">Revenue — Last 7 Days</h2>
+      <p className="text-xs text-charcoal-500">{data.revenueDefinition}</p>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <AdminCard className="p-4 sm:p-5 xl:col-span-2">
+          <div className="mb-4">
+            <h2 className="font-semibold text-charcoal-900">Revenue trend</h2>
+            <p className="mt-1 text-xs text-charcoal-500">Daily revenue from eligible orders over the last 30 days.</p>
           </div>
-          {salesByDay.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-10">No data yet</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={salesByDay} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => new Date(v).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => fmt(v)} labelFormatter={(l) => new Date(l).toLocaleDateString('en-IN')} />
-                <Bar dataKey="revenue" fill="#2d6a4f" radius={[4, 4, 0, 0]} />
+          {chartDays.length === 0 ? <AdminEmpty>No sales data yet.</AdminEmpty> : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartDays} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke="#ece9e3" />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `₹${Math.round(value / 1000)}k`} />
+                <Tooltip formatter={(value) => formatCurrency(value)} labelFormatter={(label) => `Date: ${label}`} />
+                <Bar dataKey="revenue" name="Revenue" fill="#3c6e57" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </AdminCard>
 
-        {/* Orders by Status */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-charcoal-800 text-sm mb-4">Orders by Status</h2>
-          {ordersByStatus.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-10">No data</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
+        <AdminCard className="p-4 sm:p-5">
+          <h2 className="font-semibold text-charcoal-900">Orders by status</h2>
+          {orderStatusData.length === 0 ? <AdminEmpty>No orders have been recorded.</AdminEmpty> : (
+            <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie
-                  data={ordersByStatus}
-                  dataKey="_count.id"
-                  nameKey="status"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={75}
-                  label={({ status, percent }) => `${status} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={false}
-                  fontSize={10}
-                >
-                  {ordersByStatus.map((entry) => (
-                    <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
-                  ))}
+                <Pie data={orderStatusData} dataKey="count" nameKey="status" cx="50%" cy="45%" outerRadius={82} label={({ status, percent }) => `${status} ${(percent * 100).toFixed(0)}%`}>
+                  {orderStatusData.map((row) => <Cell key={row.status} fill={row.fill} />)}
                 </Pie>
-                <Tooltip formatter={(v, n, p) => [v, p.payload.status]} />
+                <Tooltip formatter={(value, name) => [value, name]} />
+                <Legend verticalAlign="bottom" height={32} />
               </PieChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </AdminCard>
       </div>
 
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Recent Orders */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-forest-600" />
-              <h2 className="font-semibold text-charcoal-800 text-sm">Recent Orders</h2>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <AdminCard>
+          <div className="flex items-center justify-between border-b border-charcoal-100 px-4 py-4 sm:px-5">
+            <div>
+              <h2 className="font-semibold text-charcoal-900">Recent orders</h2>
+              <p className="mt-1 text-xs text-charcoal-500">Latest activity from the order database.</p>
             </div>
-            <Link to="/admin/orders" className="text-xs text-forest-600 hover:underline">View all</Link>
+            <Link to="/admin/orders" className="text-sm font-semibold text-forest-800 hover:underline">View all</Link>
           </div>
-          <div className="divide-y divide-gray-100">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="py-3 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-charcoal-800 truncate">{order.customer}</p>
-                  <p className="text-xs text-gray-400 truncate">{order.id.slice(0, 8)}…</p>
+          {data.recentOrders.length === 0 ? <AdminEmpty>No orders yet.</AdminEmpty> : (
+            <div className="divide-y divide-charcoal-100">
+              {data.recentOrders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-charcoal-800">{order.orderNumber}</p>
+                    <p className="truncate text-xs text-charcoal-500">{order.customer.name} · {order.customer.email}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-sm font-semibold text-charcoal-900">{formatCurrency(order.total)}</span>
+                    <Badge status={order.status} />
+                  </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-semibold text-charcoal-800">{fmt(order.totalAmount)}</p>
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium`}
-                    style={{ backgroundColor: STATUS_COLORS[order.status] + '22', color: STATUS_COLORS[order.status] }}>
-                    {order.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </AdminCard>
 
-        {/* Top Products */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-charcoal-800 text-sm mb-4">Top Products by Revenue</h2>
-          <div className="space-y-3">
-            {topProducts.map((p, i) => (
-              <div key={i} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs text-gray-400 w-4 flex-shrink-0">#{i + 1}</span>
-                  <span className="text-xs text-charcoal-800 truncate">{p.name}</span>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs font-semibold text-charcoal-800">{fmt(p.totalRevenue)}</p>
-                  <p className="text-xs text-gray-400">{p.totalQuantity} sold</p>
-                </div>
-              </div>
-            ))}
-            {topProducts.length === 0 && <p className="text-gray-400 text-sm text-center py-6">No sales data yet</p>}
+        <AdminCard>
+          <div className="flex items-center justify-between border-b border-charcoal-100 px-4 py-4 sm:px-5">
+            <div>
+              <h2 className="font-semibold text-charcoal-900">Best-selling products</h2>
+              <p className="mt-1 text-xs text-charcoal-500">Units from non-cancelled orders with successful payment.</p>
+            </div>
+            <Link to="/admin/reports" className="text-sm font-semibold text-forest-800 hover:underline">Reports</Link>
           </div>
-        </div>
+          {data.topProducts.length === 0 ? <AdminEmpty>No eligible product sales yet.</AdminEmpty> : (
+            <div className="divide-y divide-charcoal-100">
+              {data.topProducts.map((product, index) => (
+                <div key={product.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream-100 text-xs font-bold text-charcoal-700">{index + 1}</span>
+                    <span className="truncate text-sm font-medium text-charcoal-800">{product.name}</span>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-charcoal-900">{product.totalQuantity} sold</p>
+                    <p className="text-xs text-charcoal-500">{formatCurrency(product.totalRevenue)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </AdminCard>
       </div>
     </div>
   );

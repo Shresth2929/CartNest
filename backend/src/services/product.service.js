@@ -17,6 +17,7 @@ class ProductService {
     // Build Prisma where clause
     const where = {
       isActive: true,
+      category: { isActive: true },
     };
 
     if (search && search.trim() !== '') {
@@ -28,8 +29,9 @@ class ProductService {
 
     if (categoryId) {
       where.categoryId = categoryId;
+      where.category = { isActive: true };
     } else if (category) {
-      where.category = { slug: category.trim() };
+      where.category = { slug: category.trim(), isActive: true };
     }
 
     if (minPrice !== undefined || maxPrice !== undefined) {
@@ -106,6 +108,7 @@ class ProductService {
       where: {
         slug,
         isActive: true,
+        category: { isActive: true },
       },
       include: {
         category: {
@@ -133,6 +136,7 @@ class ProductService {
 
   async getCategories() {
     return prisma.category.findMany({
+      where: { isActive: true },
       orderBy: { name: 'asc' },
       include: {
         _count: {

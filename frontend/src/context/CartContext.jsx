@@ -8,11 +8,11 @@ const CartContext = createContext(null);
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const { showToast } = useToast();
 
   const fetchCart = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isAdmin) {
       setCart(null);
       return;
     }
@@ -27,14 +27,14 @@ export function CartProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAdmin]);
 
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
 
   const addToCart = async (productId, variantId = null, quantity = 1) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isAdmin) {
       showToast('Please log in to add items to your cart.', 'info');
       return { success: false, requireAuth: true };
     }

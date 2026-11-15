@@ -93,15 +93,17 @@ class OrderService {
     const orderResult = await prisma.$transaction(async (tx) => {
       let subtotal = 0;
       const orderItemsToCreate = [];
+      const inventoryMovements = [];
 
       // Revalidate each product and execute atomic conditional stock update
       for (const item of cart.items) {
         // Fetch fresh product & variant record to ensure active and current price
         const freshProduct = await tx.product.findUnique({
           where: { id: item.productId },
+          include: { category: { select: { isActive: true } } },
         });
 
-        if (!freshProduct || !freshProduct.isActive) {
+        if (!freshProduct || !freshProduct.isActive || !freshProduct.category.isActive) {
           throw ApiError.badRequest(`Product "${item.product.name}" is no longer active`);
         }
 
@@ -116,31 +118,46 @@ class OrderService {
 
           // Atomic conditional stock decrement for variant
           // Fails immediately if stock < requested quantity
-          const updatedVariant = await tx.$executeRaw`
+          const updatedVariant = await tx.$queryRaw`
             UPDATE "ProductVariant"
             SET stock = stock - ${item.quantity}
             WHERE id = ${item.variantId} AND stock >= ${item.quantity}
+            RETURNING stock
           `;
-
-          if (updatedVariant === 0) {
+          if (updatedVariant.length === 0) {
             throw ApiError.badRequest(
               `Insufficient inventory for variant "${freshVariant.name}". Available stock: ${freshVariant.stock}, Requested: ${item.quantity}`
             );
           }
+          inventoryMovements.push({
+            productId: freshProduct.id,
+            variantId: freshVariant.id,
+            actorId: userId,
+            delta: -item.quantity,
+            stockAfter: updatedVariant[0].stock,
+            reason: 'Order checkout',
+          });
         }
 
         // Atomic conditional stock decrement for product
-        const updatedProduct = await tx.$executeRaw`
+        const updatedProduct = await tx.$queryRaw`
           UPDATE "Product"
           SET stock = stock - ${item.quantity}
           WHERE id = ${item.productId} AND stock >= ${item.quantity}
+          RETURNING stock
         `;
-
-        if (updatedProduct === 0) {
+        if (updatedProduct.length === 0) {
           throw ApiError.badRequest(
             `Insufficient inventory for product "${freshProduct.name}". Available stock: ${freshProduct.stock}, Requested: ${item.quantity}`
           );
         }
+        inventoryMovements.push({
+          productId: freshProduct.id,
+          actorId: userId,
+          delta: -item.quantity,
+          stockAfter: updatedProduct[0].stock,
+          reason: 'Order checkout',
+        });
 
         // Calculate immutable price snapshot from database (never trust client)
         const basePrice = Number(freshProduct.basePrice);
@@ -198,12 +215,26 @@ class OrderService {
               },
             ],
           },
+          statusHistory: {
+            create: {
+              toStatus: 'PAID',
+              actorId: userId,
+              note: 'Payment successful',
+            },
+          },
         },
         include: {
           items: true,
           payments: true,
           shippingAddress: true,
         },
+      });
+
+      await tx.inventoryMovement.createMany({
+        data: inventoryMovements.map((movement) => ({
+          ...movement,
+          orderId: newOrder.id,
+        })),
       });
 
       // Clear Customer Cart atomically
@@ -349,33 +380,75 @@ class OrderService {
     // Atomic cancellation and stock restoration in transaction
     return prisma.$transaction(async (tx) => {
       // 1. Update order status to CANCELLED
-      const updatedOrder = await tx.order.update({
-        where: { id: orderId },
+      const updatedCount = await tx.order.updateMany({
+        where: { id: orderId, status: order.status },
         data: { status: 'CANCELLED' },
+      });
+      if (updatedCount.count === 0) {
+        throw ApiError.conflict('Order status changed while cancellation was being processed');
+      }
+
+      const updatedOrder = await tx.order.findUnique({
+        where: { id: orderId },
         include: { items: true, payments: true, shippingAddress: true },
       });
 
       // 2. Restore inventory exactly once
       for (const item of order.items) {
         if (item.variantId) {
-          await tx.$executeRaw`
+          const updatedVariant = await tx.$queryRaw`
             UPDATE "ProductVariant"
             SET stock = stock + ${item.quantity}
             WHERE id = ${item.variantId}
+            RETURNING stock
           `;
+          if (updatedVariant.length > 0) {
+            await tx.inventoryMovement.create({
+              data: {
+                productId: item.productId,
+                variantId: item.variantId,
+                orderId,
+                actorId: userId,
+                delta: item.quantity,
+                stockAfter: updatedVariant[0].stock,
+                reason: 'Order cancellation',
+              },
+            });
+          }
         }
 
-        await tx.$executeRaw`
+        const updatedProduct = await tx.$queryRaw`
           UPDATE "Product"
           SET stock = stock + ${item.quantity}
           WHERE id = ${item.productId}
+          RETURNING stock
         `;
+        await tx.inventoryMovement.create({
+          data: {
+            productId: item.productId,
+            orderId,
+            actorId: userId,
+            delta: item.quantity,
+            stockAfter: updatedProduct[0].stock,
+            reason: 'Order cancellation',
+          },
+        });
       }
 
       // 3. Update successful payments to REFUNDED
       await tx.payment.updateMany({
         where: { orderId, status: 'SUCCESS' },
         data: { status: 'REFUNDED' },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status,
+          toStatus: 'CANCELLED',
+          actorId: userId,
+          note: reason || 'Customer requested cancellation',
+        },
       });
 
       // 4. Record Audit Log
@@ -427,13 +500,29 @@ class OrderService {
 
     // Standard forward state transition
     return prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id: orderId },
+      const updatedCount = await tx.order.updateMany({
+        where: { id: orderId, status: currentStatus },
         data: {
           status: nextStatus,
           notes: notes || order.notes,
         },
+      });
+      if (updatedCount.count === 0) {
+        throw ApiError.conflict('Order status changed while the update was being processed');
+      }
+      const updated = await tx.order.findUnique({
+        where: { id: orderId },
         include: { items: true, payments: true, shippingAddress: true },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: currentStatus,
+          toStatus: nextStatus,
+          actorId: adminUserId,
+          note: notes || null,
+        },
       });
 
       await tx.auditLog.create({

@@ -575,6 +575,243 @@ const swaggerDocument = {
         },
       },
     },
+    '/admin/dashboard': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Get database-backed dashboard metrics',
+        description: 'Revenue includes non-cancelled orders with a successful payment; failed, pending, refunded, and cancelled orders are excluded.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: { description: 'Dashboard KPIs, sales trend, recent orders and order statuses' },
+          401: { description: 'Authentication required' },
+          403: { description: 'ADMIN role required' },
+        },
+      },
+    },
+    '/admin/reports': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Get sales, product and low-stock reports',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Sales summary, status counts, best sellers and low-stock items' } },
+      },
+    },
+    '/admin/products': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List products with filters and pagination',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'categoryId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'isActive', in: 'query', schema: { type: 'boolean' } },
+        ],
+        responses: { 200: { description: 'Paginated product catalogue' } },
+      },
+      post: {
+        tags: ['Admin'],
+        summary: 'Create a product and optional variants',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'slug', 'description', 'basePrice', 'categoryId', 'sku'],
+                properties: {
+                  name: { type: 'string' },
+                  slug: { type: 'string' },
+                  description: { type: 'string' },
+                  basePrice: { type: 'number', exclusiveMinimum: 0 },
+                  categoryId: { type: 'string', format: 'uuid' },
+                  images: { type: 'array', items: { type: 'string', format: 'uri' } },
+                  sku: { type: 'string' },
+                  stock: { type: 'integer', minimum: 0 },
+                  isFeatured: { type: 'boolean' },
+                  isActive: { type: 'boolean' },
+                  variants: { type: 'array', items: { type: 'object' } },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Product created' }, 400: { description: 'Validation failed' } },
+      },
+    },
+    '/admin/products/{id}': {
+      put: {
+        tags: ['Admin'],
+        summary: 'Update product details and variants',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Product' } } } },
+        responses: { 200: { description: 'Product updated' }, 400: { description: 'Validation failed' }, 404: { description: 'Product not found' } },
+      },
+      delete: {
+        tags: ['Admin'],
+        summary: 'Safely deactivate a product',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { 200: { description: 'Product deactivated; order history preserved' } },
+      },
+    },
+    '/admin/categories': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List categories, activation state and product counts',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Categories retrieved' } },
+      },
+      post: {
+        tags: ['Admin'],
+        summary: 'Create a category',
+        security: [{ BearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'slug'], properties: { name: { type: 'string' }, slug: { type: 'string' }, description: { type: 'string' }, imageUrl: { type: 'string', format: 'uri' }, isActive: { type: 'boolean' } } } } } },
+        responses: { 201: { description: 'Category created' }, 400: { description: 'Validation failed' } },
+      },
+    },
+    '/admin/categories/{id}': {
+      put: {
+        tags: ['Admin'],
+        summary: 'Edit a category or change its activation state',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+        responses: { 200: { description: 'Category updated' } },
+      },
+      delete: {
+        tags: ['Admin'],
+        summary: 'Delete an unused category',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { 200: { description: 'Category deleted' }, 400: { description: 'Category still has products' } },
+      },
+    },
+    '/admin/inventory': {
+      get: {
+        tags: ['Admin'],
+        summary: 'View product and variant inventory',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100, default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'lowStockOnly', in: 'query', schema: { type: 'boolean' } },
+          { name: 'threshold', in: 'query', schema: { type: 'integer', minimum: 0, default: 10 } },
+        ],
+        responses: { 200: { description: 'Paginated stock overview' } },
+      },
+    },
+    '/admin/inventory/adjustments': {
+      post: {
+        tags: ['Admin'],
+        summary: 'Adjust product or variant stock atomically',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['productId', 'delta', 'reason'],
+                properties: {
+                  productId: { type: 'string', format: 'uuid' },
+                  variantId: { type: 'string', format: 'uuid', nullable: true },
+                  delta: { type: 'integer', not: { enum: [0] } },
+                  reason: { type: 'string', minLength: 3 },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Inventory movement and audit log recorded' }, 400: { description: 'Invalid or negative stock adjustment' } },
+      },
+    },
+    '/admin/inventory/movements': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List stock movement history',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100, default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'Paginated stock movements with actor and order' } },
+      },
+    },
+    '/admin/orders': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List orders with status, customer and order-ID filters',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100, default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['PLACED', 'PAID', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] } },
+        ],
+        responses: { 200: { description: 'Paginated orders' } },
+      },
+    },
+    '/admin/orders/{id}': {
+      get: {
+        tags: ['Admin'],
+        summary: 'View order, payment, shipping and status history',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { 200: { description: 'Order details' }, 404: { description: 'Order not found' } },
+      },
+    },
+    '/admin/orders/{id}/status': {
+      patch: {
+        tags: ['Admin'],
+        summary: 'Update order using the existing state machine and cancellation safeguards',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Order' } } } },
+        responses: { 200: { description: 'Status transition and history recorded' }, 400: { description: 'Invalid transition' }, 409: { description: 'Concurrent status update' } },
+      },
+    },
+    '/admin/customers': {
+      get: {
+        tags: ['Admin'],
+        summary: 'List customers without credentials or password hashes',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100, default: 20 } },
+          { name: 'search', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'Paginated customers with registration and order counts' } },
+      },
+    },
+    '/admin/customers/{id}': {
+      get: {
+        tags: ['Admin'],
+        summary: 'View a customer profile and order summaries',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        responses: { 200: { description: 'Customer profile and recent orders' }, 404: { description: 'Customer not found' } },
+      },
+    },
+    '/admin/audit-logs': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Review administrative and commerce audit events',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100, default: 30 } },
+          { name: 'action', in: 'query', schema: { type: 'string' } },
+          { name: 'entityType', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'Paginated audit trail' } },
+      },
+    },
   },
 };
 

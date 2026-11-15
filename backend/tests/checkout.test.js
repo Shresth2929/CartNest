@@ -82,6 +82,7 @@ describe('Checkout, Transactional Inventory, Idempotency & Order Lifecycle APIs'
       await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
       if (testProduct) {
+        await prisma.inventoryMovement.deleteMany({ where: { productId: testProduct.id } });
         await prisma.product.delete({ where: { id: testProduct.id } });
       }
     } catch (e) {

@@ -1,5 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,7 +11,8 @@ import {
   LogOut,
   Store,
   Menu,
-  X,
+  Boxes,
+  BarChart3,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -20,7 +21,9 @@ const navItems = [
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/categories', label: 'Categories', icon: Tag },
+  { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { to: '/admin/customers', label: 'Customers', icon: Users },
+  { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: ClipboardList },
 ];
 
@@ -111,18 +114,29 @@ export default function AdminLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
+        <header className="min-h-14 bg-white border-b border-gray-200 flex items-center px-4 py-2 gap-3 flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-2 rounded-lg text-charcoal-600 hover:bg-gray-100"
+            aria-label="Open admin navigation"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <h1 className="text-charcoal-800 font-semibold text-sm">Admin Panel</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-charcoal-800 font-semibold text-sm">Admin workspace</h1>
+            <p className="hidden sm:block text-xs text-charcoal-500 truncate">{user?.email}</p>
+          </div>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-lg border border-charcoal-200 px-3 py-2 text-xs font-semibold text-charcoal-700 hover:bg-cream-50"
+          >
+            <Store className="h-4 w-4" />
+            <span className="hidden sm:inline">View storefront</span>
+          </Link>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
