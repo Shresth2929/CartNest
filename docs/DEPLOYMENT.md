@@ -31,6 +31,10 @@ Use the actual Vercel Production domain and any Preview domains that need API ac
 
 The backend uses JWT bearer headers from the frontend and does not issue authentication cookies. The API client therefore does not need `credentials: 'include'`; the API's CORS credentials option remains enabled but does not permit unlisted origins.
 
+## Seeding an empty production catalogue
+
+For an intentionally empty production database, `npm run prisma:seed:catalog` creates only the demo categories, products, and product variants. It first verifies that every application table is empty, then inserts the catalogue inside a serializable transaction; it refuses to run if any records already exist and never deletes or updates records. Run it from the backend working directory only after confirming the environment targets the production Neon database. Do not use the broader `npm run prisma:seed` for this operation: that development fixture also creates demo accounts, an address, cart, paid sample order, and audit logs.
+
 ## Live verification and current data state
 
 The supplied Render `/api/health`, `/api/products`, and `/api/categories` endpoints responded successfully during integration work. The health endpoint reported PostgreSQL connected, but the live database currently reports zero users and zero products; the list endpoints consequently returned empty arrays. No production data was created or modified.
