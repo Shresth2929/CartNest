@@ -25,7 +25,10 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ showToast, removeToast }}>
       {children}
       {/* Toast container */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none p-4 sm:p-0">
+      <div
+        className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none p-4"
+        style={{ width: 'min(24rem, calc(100vw - 2.5rem))' }}
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}

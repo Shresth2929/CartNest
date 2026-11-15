@@ -72,7 +72,9 @@ export default function CartPage() {
         </div>
 
         <button
-          onClick={clearCart}
+          onClick={() => {
+            if (window.confirm('Remove every item from your shopping bag?')) clearCart();
+          }}
           className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1.5 self-start sm:self-auto"
         >
           <Trash2 className="w-3.5 h-3.5" /> Clear bag

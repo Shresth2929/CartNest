@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Check } from 'lucide-react';
+import { ShoppingBag, Check, PackageOpen } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 export default function ProductCard({ product }) {
@@ -8,10 +8,14 @@ export default function ProductCard({ product }) {
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
 
-  const defaultImage = product.images?.[0] || 'https://images.unsplash.com/photo-1593062096033-9a26b09da705?auto=format&fit=crop&w=800&q=80';
+  const defaultImage = product.images?.[0];
   const hasVariants = product.variants && product.variants.length > 0;
-  const isOutOfStock = product.stock <= 0 && (!hasVariants || product.variants.every((v) => v.stock <= 0));
-  const isLowStock = !isOutOfStock && product.stock <= 5;
+  const availableVariant = hasVariants ? product.variants.find((variant) => variant.stock > 0) : null;
+  const availableStock = hasVariants
+    ? Math.max(...product.variants.map((variant) => variant.stock))
+    : product.stock;
+  const isOutOfStock = availableStock <= 0;
+  const isLowStock = !isOutOfStock && availableStock <= 5;
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
@@ -19,8 +23,7 @@ export default function ProductCard({ product }) {
     if (isOutOfStock || isAdding) return;
 
     setIsAdding(true);
-    // If has variants, pass first variant by default
-    const variantId = hasVariants ? product.variants[0].id : null;
+    const variantId = hasVariants ? availableVariant?.id : null;
     const res = await addToCart(product.id, variantId, 1);
     setIsAdding(false);
 
@@ -34,12 +37,18 @@ export default function ProductCard({ product }) {
     <div className="group bg-white rounded-2xl border border-charcoal-100 hover:border-charcoal-200 hover:shadow-md transition duration-200 flex flex-col overflow-hidden">
       {/* Image Container */}
       <Link to={`/products/${product.slug}`} className="relative aspect-square overflow-hidden bg-cream-100">
-        <img
-          src={defaultImage}
-          alt={product.name}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300"
-          loading="lazy"
-        />
+        {defaultImage ? (
+          <img
+            src={defaultImage}
+            alt={product.name}
+            className="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-forest-700">
+            <PackageOpen className="w-12 h-12" aria-hidden="true" />
+          </div>
+        )}
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5">
@@ -55,7 +64,7 @@ export default function ProductCard({ product }) {
           )}
           {isLowStock && (
             <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
-              Only {product.stock} left
+              Only {availableStock} left
             </span>
           )}
         </div>
@@ -79,7 +88,9 @@ export default function ProductCard({ product }) {
           <div>
             <span className="text-xs text-charcoal-400 font-medium">Price</span>
             <p className="font-bold text-base text-charcoal-900">
-              ₹{Number(product.basePrice).toLocaleString('en-IN')}
+              {hasVariants && product.variants.some((variant) => Number(variant.priceAdjustment) !== 0)
+                ? `From ₹${Math.min(...product.variants.map((variant) => Number(product.basePrice) + Number(variant.priceAdjustment))).toLocaleString('en-IN')}`
+                : `₹${Number(product.basePrice).toLocaleString('en-IN')}`}
             </p>
           </div>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -24,11 +24,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-  };
-
   return (
     <div className="max-w-md mx-auto px-4 py-16 sm:py-24">
       <div className="bg-white rounded-3xl border border-charcoal-100 p-8 sm:p-10 shadow-sm space-y-6">
@@ -38,29 +33,6 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-charcoal-900 tracking-tight">Welcome Back</h1>
           <p className="text-xs text-charcoal-500">Sign in to your CartNest customer account</p>
-        </div>
-
-        {/* Quick Fill Demo Credentials */}
-        <div className="p-3 bg-cream-100 rounded-xl border border-charcoal-200 text-xs space-y-2">
-          <p className="font-semibold text-charcoal-700 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-forest-700" /> Student Showcase Demo Credentials:
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('customer@cartnest.com', 'CustomerPassword123!')}
-              className="flex-1 py-1.5 px-2 bg-white hover:bg-cream-200 border border-charcoal-200 rounded-lg text-[11px] font-semibold text-charcoal-800 transition"
-            >
-              Fill Demo Customer
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin@cartnest.com', 'AdminPassword123!')}
-              className="flex-1 py-1.5 px-2 bg-white hover:bg-cream-200 border border-charcoal-200 rounded-lg text-[11px] font-semibold text-charcoal-800 transition"
-            >
-              Fill Demo Admin
-            </button>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">

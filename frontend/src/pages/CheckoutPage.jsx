@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, MapPin, CreditCard, Plus, ArrowRight, Lock, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext';
 import Modal from '../components/common/Modal';
 
 export default function CheckoutPage() {
-  const { cart, subtotal, fetchCart } = useCart();
+  const { cart, subtotal, hasUnavailableItems, isLoading: isCartLoading, fetchCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const checkoutInFlight = useRef(false);
 
   // New Address Form State
   const [newAddress, setNewAddress] = useState({
@@ -52,7 +53,7 @@ export default function CheckoutPage() {
           }
         }
       } catch (err) {
-        showToast('Failed to load address book', 'error');
+        showToast(err.message || 'Failed to load address book', 'error');
       }
     }
 
@@ -86,6 +87,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
+    if (checkoutInFlight.current) return;
     if (!selectedAddressId) {
       showToast('Please select or add a shipping address', 'error');
       return;
@@ -95,10 +97,16 @@ export default function CheckoutPage() {
       navigate('/cart');
       return;
     }
+    if (hasUnavailableItems) {
+      showToast('Update or remove unavailable items before checkout', 'error');
+      return;
+    }
 
+    checkoutInFlight.current = true;
     setIsSubmitting(true);
-    // Generate fresh idempotency key to prevent double charge
-    const idempotencyKey = `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const idempotencyKey = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     try {
       const checkoutPayload = {
@@ -117,6 +125,7 @@ export default function CheckoutPage() {
     } catch (err) {
       showToast(err.message || 'Checkout failed', 'error');
     } finally {
+      checkoutInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -312,7 +321,7 @@ export default function CheckoutPage() {
               <span className="font-semibold text-charcoal-900">₹{subtotal.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between">
-              <span>GST (18%)</span>
+              <span>Estimated GST (18%)</span>
               <span className="font-semibold text-charcoal-900">₹{tax.toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between">
@@ -327,16 +336,19 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          <p className="text-[11px] text-charcoal-500">
+            These figures are estimates. Final prices, tax and delivery are calculated by CartNest when your order is placed.
+          </p>
           <button
             onClick={handlePlaceOrder}
-            disabled={isSubmitting || !selectedAddressId || !cart?.items?.length}
+            disabled={isSubmitting || isCartLoading || hasUnavailableItems || !selectedAddressId || !cart?.items?.length}
             className="w-full py-4 bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-cream-50 rounded-full font-bold text-sm transition shadow-md flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               'Processing Transaction...'
             ) : (
               <>
-                <Lock className="w-4 h-4" /> Place Order &amp; Pay ₹{total.toLocaleString('en-IN')}
+                <Lock className="w-4 h-4" /> Place Order Securely
               </>
             )}
           </button>

@@ -4,11 +4,18 @@ import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
+function getStoredUser() {
+  try {
     const saved = localStorage.getItem('cartnest_user');
     return saved ? JSON.parse(saved) : null;
-  });
+  } catch {
+    localStorage.removeItem('cartnest_user');
+    return null;
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(getStoredUser);
   const [token, setToken] = useState(() => localStorage.getItem('cartnest_token'));
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useToast();

@@ -3,31 +3,39 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Compass, ShieldCheck, Leaf } from 'lucide-react';
 import { api } from '../services/api';
 import ProductGrid from '../components/product/ProductGrid';
+import { useToast } from '../context/ToastContext';
 
 export default function HomePage() {
   const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [newArrivals, setNewArrivals] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [prodRes, catRes] = await Promise.all([
+        const [featuredRes, arrivalsRes, catRes] = await Promise.all([
           api.products.list({ sortBy: 'featured', limit: 4 }),
+          api.products.list({ sortBy: 'newest', limit: 4 }),
           api.products.categories(),
         ]);
 
-        if (prodRes.success) setFeaturedProducts(prodRes.data);
+        if (featuredRes.success) setFeaturedProducts(featuredRes.data);
+        if (arrivalsRes.success) setNewArrivals(arrivalsRes.data);
         if (catRes.success) setCategories(catRes.data);
       } catch (err) {
-        console.error('Failed to load homepage data:', err);
+        showToast(err.message || 'Failed to load the storefront', 'error');
       } finally {
         setIsLoading(false);
       }
     }
     loadData();
-  }, []);
+  }, [showToast]);
+
+  const heroProduct = featuredProducts[0] || newArrivals[0];
+  const heroImage = heroProduct?.images?.[0];
 
   return (
     <div className="space-y-16 sm:space-y-24">
@@ -39,10 +47,10 @@ export default function HomePage() {
               <Sparkles className="w-3.5 h-3.5" /> Handcrafted Mindful Living
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-charcoal-900 leading-[1.12]">
-              Elevate your daily rhythm with intentional design.
+              Good things for the everyday.
             </h1>
             <p className="text-base sm:text-lg text-charcoal-600 max-w-xl leading-relaxed">
-              CartNest curates solid FSC-certified oak stands, double-glazed ceramic drippers, and botanical aromatics. Every item is verified for real durability and quiet beauty.
+              Discover considered finds for your home, workspace and daily rituals — thoughtfully chosen, easy to love.
             </p>
             <div className="flex flex-wrap gap-4 pt-2">
               <Link
@@ -53,34 +61,54 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                to="/shop?category=living-workspace"
+                to={heroProduct ? `/products/${heroProduct.slug}` : '/shop'}
                 className="px-6 py-3.5 bg-white hover:bg-cream-200 border border-charcoal-200 text-charcoal-800 rounded-full font-medium text-sm transition"
               >
-                Workspace Essentials
+                {heroProduct ? 'Discover a favourite' : 'Browse the collection'}
               </Link>
             </div>
           </div>
 
           <div className="lg:col-span-5 relative">
             <div className="aspect-[4/3] sm:aspect-square rounded-3xl overflow-hidden shadow-xl border border-charcoal-200 bg-white">
-              <img
-                src="https://images.unsplash.com/photo-1593062096033-9a26b09da705?auto=format&fit=crop&w=1000&q=80"
-                alt="Nordic Oak Monitor Stand"
-                className="w-full h-full object-cover object-center"
-              />
+              {heroImage ? (
+                <img
+                  src={heroImage}
+                  alt={heroProduct.name}
+                  className="w-full h-full object-cover object-center"
+                />
+              ) : (
+                <div className="w-full h-full bg-cream-100" aria-label="Product photography will appear here" />
+              )}
             </div>
             {/* Float badge */}
-            <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-lg border border-charcoal-100 hidden sm:flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-forest-100 flex items-center justify-center text-forest-700 font-bold">
-                100%
+            {heroProduct && (
+              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-2xl shadow-lg border border-charcoal-100 hidden sm:flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-forest-100 flex items-center justify-center text-forest-700 font-bold">
+                  ₹
+                </div>
+                <div className="text-xs">
+                  <p className="font-bold text-charcoal-900">{heroProduct.name}</p>
+                  <p className="text-charcoal-500">From ₹{Number(heroProduct.basePrice).toLocaleString('en-IN')}</p>
+                </div>
               </div>
-              <div className="text-xs">
-                <p className="font-bold text-charcoal-900">Solid Sustainable Oak</p>
-                <p className="text-charcoal-500">Brass cable routing accent</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
+      </section>
+
+      {/* New Arrivals */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+          <div>
+            <span className="text-xs font-bold text-forest-700 uppercase tracking-widest">Just landed</span>
+            <h2 className="text-2xl sm:text-3xl font-bold text-charcoal-900 mt-1">New Arrivals</h2>
+          </div>
+          <Link to="/shop?sortBy=newest" className="text-sm font-semibold text-forest-700 hover:text-forest-800 flex items-center gap-1 group">
+            See what’s new <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
+          </Link>
+        </div>
+        <ProductGrid products={newArrivals} isLoading={isLoading} />
       </section>
 
       {/* Categories Grid */}

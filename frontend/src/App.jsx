@@ -17,6 +17,9 @@ import ProfilePage from './pages/ProfilePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ProtectedRoute from './components/common/ProtectedRoute';
+
+const protectedPage = (page) => <ProtectedRoute>{page}</ProtectedRoute>;
 
 export default function App() {
   return (
@@ -30,11 +33,11 @@ export default function App() {
                 <Route path="shop" element={<ShopPage />} />
                 <Route path="products/:slug" element={<ProductDetailPage />} />
                 <Route path="cart" element={<CartPage />} />
-                <Route path="checkout" element={<CheckoutPage />} />
-                <Route path="orders" element={<OrdersPage />} />
-                <Route path="orders/:id" element={<OrderDetailPage />} />
-                <Route path="orders/:id/success" element={<OrderSuccessPage />} />
-                <Route path="profile" element={<ProfilePage />} />
+                <Route path="checkout" element={protectedPage(<CheckoutPage />)} />
+                <Route path="orders" element={protectedPage(<OrdersPage />)} />
+                <Route path="orders/:id" element={protectedPage(<OrderDetailPage />)} />
+                <Route path="orders/:id/success" element={protectedPage(<OrderSuccessPage />)} />
+                <Route path="profile" element={protectedPage(<ProfilePage />)} />
                 <Route path="login" element={<LoginPage />} />
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="*" element={<NotFoundPage />} />

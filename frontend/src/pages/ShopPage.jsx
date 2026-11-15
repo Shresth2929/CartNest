@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../services/api';
 import ProductGrid from '../components/product/ProductGrid';
+import { useToast } from '../context/ToastContext';
 
 export default function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,6 +25,13 @@ export default function ShopPage() {
   const [minPriceInput, setMinPriceInput] = useState(currentMinPrice);
   const [maxPriceInput, setMaxPriceInput] = useState(currentMaxPrice);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    setSearchInput(currentSearch);
+    setMinPriceInput(currentMinPrice);
+    setMaxPriceInput(currentMaxPrice);
+  }, [currentSearch, currentMinPrice, currentMaxPrice]);
 
   // Load categories
   useEffect(() => {
@@ -32,11 +40,11 @@ export default function ShopPage() {
         const res = await api.products.categories();
         if (res.success) setCategories(res.data);
       } catch (err) {
-        console.error('Failed to load categories:', err);
+        showToast(err.message || 'Failed to load categories', 'error');
       }
     }
     loadCategories();
-  }, []);
+  }, [showToast]);
 
   // Load products whenever searchParams change
   useEffect(() => {
@@ -59,7 +67,7 @@ export default function ShopPage() {
           setMeta(res.meta);
         }
       } catch (err) {
-        console.error('Failed to load products:', err);
+        showToast(err.message || 'Failed to load products', 'error');
       } finally {
         setIsLoading(false);
       }
@@ -67,7 +75,7 @@ export default function ShopPage() {
 
     loadProducts();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [searchParams]);
+  }, [searchParams, showToast]);
 
   const updateParam = (key, value) => {
     const newParams = new URLSearchParams(searchParams);
@@ -90,6 +98,11 @@ export default function ShopPage() {
 
   const handlePriceApply = (e) => {
     e.preventDefault();
+    if (minPriceInput && maxPriceInput && Number(minPriceInput) > Number(maxPriceInput)) {
+      showToast('Minimum price cannot be greater than maximum price', 'error');
+      return;
+    }
+
     const newParams = new URLSearchParams(searchParams);
     if (minPriceInput) newParams.set('minPrice', minPriceInput);
     else newParams.delete('minPrice');
@@ -123,6 +136,7 @@ export default function ShopPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsFilterDrawerOpen(!isFilterDrawerOpen)}
+            aria-expanded={isFilterDrawerOpen}
             className="lg:hidden flex items-center gap-2 px-4 py-2 border border-charcoal-200 rounded-xl text-sm font-medium bg-white"
           >
             <SlidersHorizontal className="w-4 h-4" /> Filters
@@ -144,6 +158,95 @@ export default function ShopPage() {
           </div>
         </div>
       </div>
+
+      {isFilterDrawerOpen && (
+        <div className="lg:hidden bg-white p-5 rounded-2xl border border-charcoal-200 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-charcoal-900">Filter products</h2>
+            <button
+              type="button"
+              onClick={() => setIsFilterDrawerOpen(false)}
+              className="p-1 text-charcoal-500 hover:text-charcoal-900"
+              aria-label="Close filters"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search products..."
+              className="w-full bg-cream-50 border border-charcoal-200 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-forest-700"
+            />
+            <Search className="w-4 h-4 text-charcoal-400 absolute left-3 top-3 pointer-events-none" />
+          </form>
+          <div>
+            <h3 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider mb-2">Categories</h3>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => updateParam('category', '')}
+                className={`px-3 py-1.5 rounded-full border text-xs font-medium ${
+                  !currentCategory ? 'border-forest-700 bg-forest-50 text-forest-800' : 'border-charcoal-200 text-charcoal-700'
+                }`}
+              >
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  type="button"
+                  key={cat.id}
+                  onClick={() => updateParam('category', cat.slug)}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-medium ${
+                    currentCategory === cat.slug ? 'border-forest-700 bg-forest-50 text-forest-800' : 'border-charcoal-200 text-charcoal-700'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <form onSubmit={handlePriceApply} className="space-y-2">
+            <h3 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider">Price range (₹)</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                placeholder="Min"
+                value={minPriceInput}
+                onChange={(e) => setMinPriceInput(e.target.value)}
+                className="w-full bg-cream-50 border border-charcoal-200 rounded-xl px-3 py-2 text-sm"
+              />
+              <span className="text-charcoal-400">–</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="Max"
+                value={maxPriceInput}
+                onChange={(e) => setMaxPriceInput(e.target.value)}
+                className="w-full bg-cream-50 border border-charcoal-200 rounded-xl px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2 bg-forest-700 text-white rounded-xl text-sm font-semibold">
+                Apply filters
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleClearFilters();
+                  setIsFilterDrawerOpen(false);
+                }}
+                className="px-4 py-2 border border-charcoal-200 rounded-xl text-sm font-medium"
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Sidebar Filters (Desktop) */}
@@ -203,6 +306,7 @@ export default function ShopPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="number"
+                  min="0"
                   placeholder="Min"
                   value={minPriceInput}
                   onChange={(e) => setMinPriceInput(e.target.value)}
@@ -211,6 +315,7 @@ export default function ShopPage() {
                 <span className="text-charcoal-400 text-xs">-</span>
                 <input
                   type="number"
+                  min="0"
                   placeholder="Max"
                   value={maxPriceInput}
                   onChange={(e) => setMaxPriceInput(e.target.value)}

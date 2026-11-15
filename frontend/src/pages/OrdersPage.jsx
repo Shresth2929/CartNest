@@ -37,7 +37,7 @@ export default function OrdersPage() {
           setMeta(res.meta);
         }
       } catch (err) {
-        showToast('Failed to load orders', 'error');
+        showToast(err.message || 'Failed to load orders', 'error');
       } finally {
         setIsLoading(false);
       }

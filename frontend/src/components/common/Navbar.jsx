@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Search, User, Menu, X, LogOut, Package, MapPin, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { api } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -10,7 +12,17 @@ export default function Navbar() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    api.products.categories()
+      .then((res) => {
+        if (res.success) setCategories(res.data);
+      })
+      .catch((err) => showToast(err.message || 'Failed to load categories', 'error'));
+  }, [showToast]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -57,10 +69,12 @@ export default function Navbar() {
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-7 text-sm font-medium text-charcoal-700">
             <Link to="/" className="hover:text-forest-700 transition">Home</Link>
-            <Link to="/shop" className="hover:text-forest-700 transition">All Products</Link>
-            <Link to="/shop?category=living-workspace" className="hover:text-forest-700 transition">Workspace</Link>
-            <Link to="/shop?category=kitchen-dining" className="hover:text-forest-700 transition">Kitchen</Link>
-            <Link to="/shop?category=aromatics-wellness" className="hover:text-forest-700 transition">Wellness</Link>
+            <Link to="/shop" className="hover:text-forest-700 transition">Shop</Link>
+            {categories.slice(0, 3).map((category) => (
+              <Link key={category.id} to={`/shop?category=${category.slug}`} className="hover:text-forest-700 transition">
+                {category.name}
+              </Link>
+            ))}
           </nav>
 
           {/* Actions: Cart & Auth */}
@@ -181,36 +195,18 @@ export default function Navbar() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="px-3 py-2 rounded-lg hover:bg-cream-100"
               >
-                All Products
+                Shop all
               </Link>
-              <Link
-                to="/shop?category=living-workspace"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-cream-100"
-              >
-                Living &amp; Workspace
-              </Link>
-              <Link
-                to="/shop?category=kitchen-dining"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-cream-100"
-              >
-                Kitchen &amp; Dining
-              </Link>
-              <Link
-                to="/shop?category=home-organizers"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-cream-100"
-              >
-                Home Organizers
-              </Link>
-              <Link
-                to="/shop?category=aromatics-wellness"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-cream-100"
-              >
-                Aromatics &amp; Wellness
-              </Link>
+              {categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to={`/shop?category=${category.slug}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-lg hover:bg-cream-100"
+                >
+                  {category.name}
+                </Link>
+              ))}
 
               {!isAuthenticated && (
                 <div className="pt-2 border-t border-charcoal-100 flex gap-2">

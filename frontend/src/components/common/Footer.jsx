@@ -13,7 +13,7 @@ export default function Footer() {
               <Truck className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="font-semibold text-charcoal-900 text-sm">Free Express Shipping</h4>
+              <h4 className="font-semibold text-charcoal-900 text-sm">Free Standard Shipping</h4>
               <p className="text-xs text-charcoal-500 mt-0.5">Complimentary delivery across India on orders above ₹1,500.</p>
             </div>
           </div>
@@ -58,13 +58,11 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider mb-4">Curated Shop</h4>
+          <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider mb-4">Explore the Shop</h4>
           <ul className="space-y-2.5 text-xs">
-            <li><Link to="/shop?category=living-workspace" className="hover:text-forest-700 transition">Living &amp; Workspace</Link></li>
-            <li><Link to="/shop?category=kitchen-dining" className="hover:text-forest-700 transition">Kitchen &amp; Dining</Link></li>
-            <li><Link to="/shop?category=home-organizers" className="hover:text-forest-700 transition">Home Organizers</Link></li>
-            <li><Link to="/shop?category=aromatics-wellness" className="hover:text-forest-700 transition">Aromatics &amp; Wellness</Link></li>
-            <li><Link to="/shop" className="hover:text-forest-700 transition">View All Products</Link></li>
+            <li><Link to="/shop" className="hover:text-forest-700 transition">All Products</Link></li>
+            <li><Link to="/shop?sortBy=newest" className="hover:text-forest-700 transition">New Arrivals</Link></li>
+            <li><Link to="/shop?sortBy=featured" className="hover:text-forest-700 transition">Featured Finds</Link></li>
           </ul>
         </div>
 
@@ -79,13 +77,13 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider mb-4">Platform Stack</h4>
+          <h4 className="text-xs font-bold text-charcoal-900 uppercase tracking-wider mb-4">CartNest</h4>
           <p className="text-xs text-charcoal-500 mb-3 leading-relaxed">
-            Engineered with Node.js, Express, PostgreSQL, Prisma ORM, React 18, Vite &amp; Tailwind CSS.
+            Thoughtful finds for home, work and everything in between.
           </p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-charcoal-200 rounded-full text-xs font-semibold text-charcoal-700">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Live PostgreSQL Connected
+            <span className="w-2 h-2 rounded-full bg-forest-600" />
+            Made for everyday living
           </div>
         </div>
       </div>

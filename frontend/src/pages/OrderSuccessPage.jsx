@@ -3,12 +3,14 @@ import { useParams, useLocation, Link } from 'react-router-dom';
 import { CheckCircle2, Package, ArrowRight, Home, ShieldCheck } from 'lucide-react';
 import { api } from '../services/api';
 import Badge from '../components/common/Badge';
+import { useToast } from '../context/ToastContext';
 
 export default function OrderSuccessPage() {
   const { id } = useParams();
   const location = useLocation();
   const [order, setOrder] = useState(location.state?.order || null);
   const [isLoading, setIsLoading] = useState(!order);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!order && id) {
@@ -19,14 +21,14 @@ export default function OrderSuccessPage() {
             setOrder(res.data);
           }
         } catch (err) {
-          console.error('Failed to load order:', err);
+          showToast(err.message || 'Failed to load order details', 'error');
         } finally {
           setIsLoading(false);
         }
       }
       fetchOrder();
     }
-  }, [id, order]);
+  }, [id, order, showToast]);
 
   if (isLoading) {
     return (

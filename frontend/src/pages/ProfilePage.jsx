@@ -37,7 +37,7 @@ export default function ProfilePage() {
         setAddresses(res.data);
       }
     } catch (err) {
-      showToast('Failed to load address book', 'error');
+      showToast(err.message || 'Failed to load address book', 'error');
     } finally {
       setIsLoading(false);
     }
