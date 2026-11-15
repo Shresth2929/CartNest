@@ -1,43 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+
+import MainLayout from './layouts/MainLayout';
+import HomePage from './pages/HomePage';
+import ShopPage from './pages/ShopPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderSuccessPage from './pages/OrderSuccessPage';
+import OrdersPage from './pages/OrdersPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+import ProfilePage from './pages/ProfilePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
-  const [health, setHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => {
-        setHealth(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('API health check error:', err);
-        setLoading(false);
-      });
-  }, []);
-
   return (
-    <div className="min-h-screen bg-cream-50 flex flex-col items-center justify-center p-6 text-charcoal-800">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-charcoal-100 p-8 text-center">
-        <div className="w-12 h-12 bg-forest-100 text-forest-700 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-xl">
-          CN
-        </div>
-        <h1 className="text-2xl font-bold text-charcoal-900 mb-2">CartNest Storefront</h1>
-        <p className="text-charcoal-500 text-sm mb-6">
-          Phase 1 Environment &amp; Database Connected Successfully.
-        </p>
-        <div className="bg-cream-100 rounded-lg p-4 text-left text-xs font-mono">
-          <p className="font-semibold text-charcoal-700 mb-1">Backend Health Check:</p>
-          {loading ? (
-            <p className="text-charcoal-400">Pinging /api/health...</p>
-          ) : health ? (
-            <pre className="text-forest-700">{JSON.stringify(health, null, 2)}</pre>
-          ) : (
-            <p className="text-red-500">Failed to connect to backend API.</p>
-          )}
-        </div>
-      </div>
-    </div>
+    <ToastProvider>
+      <AuthProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<HomePage />} />
+                <Route path="shop" element={<ShopPage />} />
+                <Route path="products/:slug" element={<ProductDetailPage />} />
+                <Route path="cart" element={<CartPage />} />
+                <Route path="checkout" element={<CheckoutPage />} />
+                <Route path="orders" element={<OrdersPage />} />
+                <Route path="orders/:id" element={<OrderDetailPage />} />
+                <Route path="orders/:id/success" element={<OrderSuccessPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="login" element={<LoginPage />} />
+                <Route path="register" element={<RegisterPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
