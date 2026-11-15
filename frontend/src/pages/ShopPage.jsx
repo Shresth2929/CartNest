@@ -12,6 +12,8 @@ export default function ShopPage() {
   const [categories, setCategories] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, total: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
 
   // Filters state initialized from URL query params
   const currentSearch = searchParams.get('search') || '';
@@ -50,6 +52,7 @@ export default function ShopPage() {
   useEffect(() => {
     async function loadProducts() {
       setIsLoading(true);
+      setLoadError('');
       try {
         const params = {
           search: searchParams.get('search') || undefined,
@@ -67,7 +70,9 @@ export default function ShopPage() {
           setMeta(res.meta);
         }
       } catch (err) {
-        showToast(err.message || 'Failed to load products', 'error');
+        const message = err.message || 'Failed to load products';
+        setLoadError(message);
+        showToast(message, 'error');
       } finally {
         setIsLoading(false);
       }
@@ -75,7 +80,7 @@ export default function ShopPage() {
 
     loadProducts();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [searchParams, showToast]);
+  }, [searchParams, showToast, reloadCount]);
 
   const updateParam = (key, value) => {
     const newParams = new URLSearchParams(searchParams);
@@ -145,6 +150,7 @@ export default function ShopPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-charcoal-500 font-medium hidden sm:inline">Sort:</span>
             <select
+              aria-label="Sort products"
               value={currentSort}
               onChange={(e) => updateParam('sortBy', e.target.value)}
               className="bg-white border border-charcoal-200 rounded-xl px-3 py-2 text-sm text-charcoal-800 focus:outline-none focus:border-forest-700"
@@ -175,6 +181,7 @@ export default function ShopPage() {
           <form onSubmit={handleSearchSubmit} className="relative">
             <input
               type="search"
+              aria-label="Search products"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search products..."
@@ -213,6 +220,7 @@ export default function ShopPage() {
             <div className="flex items-center gap-2">
               <input
                 type="number"
+                aria-label="Minimum price"
                 min="0"
                 placeholder="Min"
                 value={minPriceInput}
@@ -222,6 +230,7 @@ export default function ShopPage() {
               <span className="text-charcoal-400">–</span>
               <input
                 type="number"
+                aria-label="Maximum price"
                 min="0"
                 placeholder="Max"
                 value={maxPriceInput}
@@ -257,6 +266,7 @@ export default function ShopPage() {
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
                 type="text"
+                aria-label="Search products"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Keywords..."
@@ -306,6 +316,7 @@ export default function ShopPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="number"
+                  aria-label="Minimum price"
                   min="0"
                   placeholder="Min"
                   value={minPriceInput}
@@ -315,6 +326,7 @@ export default function ShopPage() {
                 <span className="text-charcoal-400 text-xs">-</span>
                 <input
                   type="number"
+                  aria-label="Maximum price"
                   min="0"
                   placeholder="Max"
                   value={maxPriceInput}
@@ -351,19 +363,19 @@ export default function ShopPage() {
               {currentCategory && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-full border border-charcoal-200 font-medium text-charcoal-800">
                   Category: {categories.find((c) => c.slug === currentCategory)?.name || currentCategory}
-                  <button onClick={() => updateParam('category', '')}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
+                  <button aria-label="Remove category filter" onClick={() => updateParam('category', '')}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
                 </span>
               )}
               {currentSearch && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-full border border-charcoal-200 font-medium text-charcoal-800">
                   Search: "{currentSearch}"
-                  <button onClick={() => updateParam('search', '')}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
+                  <button aria-label="Remove search filter" onClick={() => updateParam('search', '')}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
                 </span>
               )}
               {(currentMinPrice || currentMaxPrice) && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-full border border-charcoal-200 font-medium text-charcoal-800">
                   Price: ₹{currentMinPrice || '0'} - ₹{currentMaxPrice || '∞'}
-                  <button onClick={() => { setMinPriceInput(''); setMaxPriceInput(''); updateParam('minPrice', ''); updateParam('maxPrice', ''); }}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
+                  <button aria-label="Remove price filter" onClick={() => { setMinPriceInput(''); setMaxPriceInput(''); updateParam('minPrice', ''); updateParam('maxPrice', ''); }}><X className="w-3 h-3 text-charcoal-400 hover:text-charcoal-700" /></button>
                 </span>
               )}
               <button
@@ -376,7 +388,17 @@ export default function ShopPage() {
           )}
 
           {/* Product Grid */}
-          <ProductGrid products={products} isLoading={isLoading} />
+          {loadError ? (
+            <div className="bg-white rounded-2xl border border-red-200 p-10 text-center space-y-3" role="alert">
+              <h2 className="text-lg font-semibold text-charcoal-900">Catalogue unavailable</h2>
+              <p className="text-sm text-charcoal-600">{loadError}</p>
+              <button type="button" onClick={() => setReloadCount((count) => count + 1)} className="px-4 py-2 bg-forest-700 text-white rounded-xl text-sm font-semibold">
+                Try again
+              </button>
+            </div>
+          ) : (
+            <ProductGrid products={products} isLoading={isLoading} />
+          )}
 
           {/* Pagination */}
           {meta.totalPages > 1 && (

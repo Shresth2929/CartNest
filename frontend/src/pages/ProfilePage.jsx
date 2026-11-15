@@ -247,8 +247,9 @@ export default function ProfilePage() {
       >
         <form onSubmit={handleSaveAddress} className="space-y-3.5 text-xs">
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
+            <label htmlFor="profile-address-full-name" className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
             <input
+              id="profile-address-full-name"
               type="text"
               required
               value={addressForm.fullName}
@@ -259,8 +260,9 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Address Line 1</label>
+            <label htmlFor="profile-address-line-1" className="font-semibold text-charcoal-700 block mb-1">Address Line 1</label>
             <input
+              id="profile-address-line-1"
               type="text"
               required
               value={addressForm.addressLine1}
@@ -271,8 +273,9 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Address Line 2 (Optional)</label>
+            <label htmlFor="profile-address-line-2" className="font-semibold text-charcoal-700 block mb-1">Address Line 2 (Optional)</label>
             <input
+              id="profile-address-line-2"
               type="text"
               value={addressForm.addressLine2}
               onChange={(e) => setAddressForm({ ...addressForm, addressLine2: e.target.value })}
@@ -283,8 +286,9 @@ export default function ProfilePage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">City</label>
+              <label htmlFor="profile-address-city" className="font-semibold text-charcoal-700 block mb-1">City</label>
               <input
+                id="profile-address-city"
                 type="text"
                 required
                 value={addressForm.city}
@@ -293,8 +297,9 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">State</label>
+              <label htmlFor="profile-address-state" className="font-semibold text-charcoal-700 block mb-1">State</label>
               <input
+                id="profile-address-state"
                 type="text"
                 required
                 value={addressForm.state}
@@ -306,8 +311,9 @@ export default function ProfilePage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">Postal Code (PIN)</label>
+              <label htmlFor="profile-address-postal-code" className="font-semibold text-charcoal-700 block mb-1">Postal Code (PIN)</label>
               <input
+                id="profile-address-postal-code"
                 type="text"
                 required
                 value={addressForm.postalCode}
@@ -316,8 +322,9 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">Phone Number</label>
+              <label htmlFor="profile-address-phone" className="font-semibold text-charcoal-700 block mb-1">Phone Number</label>
               <input
+                id="profile-address-phone"
                 type="text"
                 required
                 value={addressForm.phone}

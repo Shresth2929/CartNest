@@ -21,6 +21,9 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const checkoutInFlight = useRef(false);
+  const checkoutKeyRef = useRef(
+    sessionStorage.getItem(`cartnest_checkout_key:${user?.id || 'guest'}`),
+  );
 
   // New Address Form State
   const [newAddress, setNewAddress] = useState({
@@ -102,11 +105,29 @@ export default function CheckoutPage() {
       return;
     }
 
+    const checkoutStorageKey = `cartnest_checkout_key:${user?.id || 'guest'}`;
+    const signatureStorageKey = `cartnest_checkout_signature:${user?.id || 'guest'}`;
+    const checkoutSignature = JSON.stringify({
+      shippingAddressId: selectedAddressId,
+      paymentMethod,
+      paymentSimulation,
+      notes: notes.trim(),
+      items: cart.items.map(({ id, quantity }) => ({ id, quantity })),
+    });
+    if (sessionStorage.getItem(signatureStorageKey) !== checkoutSignature) {
+      checkoutKeyRef.current = null;
+    }
+
     checkoutInFlight.current = true;
     setIsSubmitting(true);
-    const idempotencyKey = window.crypto?.randomUUID
-      ? window.crypto.randomUUID()
-      : `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (!checkoutKeyRef.current) {
+      checkoutKeyRef.current = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `checkout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(checkoutStorageKey, checkoutKeyRef.current);
+      sessionStorage.setItem(signatureStorageKey, checkoutSignature);
+    }
+    const idempotencyKey = checkoutKeyRef.current;
 
     try {
       const checkoutPayload = {
@@ -118,6 +139,9 @@ export default function CheckoutPage() {
 
       const res = await api.checkout.placeOrder(checkoutPayload, idempotencyKey);
       if (res.success && res.data) {
+        checkoutKeyRef.current = null;
+        sessionStorage.removeItem(checkoutStorageKey);
+        sessionStorage.removeItem(signatureStorageKey);
         await fetchCart(); // Refresh cart to empty state
         showToast('Order confirmed and paid!', 'success');
         navigate(`/orders/${res.data.id}/success`, { state: { order: res.data } });
@@ -178,14 +202,16 @@ export default function CheckoutPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2" role="group" aria-label="Delivery addresses">
                 {addresses.map((addr) => {
                   const isSelected = selectedAddressId === addr.id;
                   return (
-                    <div
+                    <button
                       key={addr.id}
+                      type="button"
                       onClick={() => setSelectedAddressId(addr.id)}
-                      className={`p-4 rounded-xl border text-xs cursor-pointer transition relative flex flex-col justify-between ${
+                      aria-pressed={isSelected}
+                      className={`p-4 rounded-xl border text-xs text-left transition relative flex flex-col justify-between ${
                         isSelected
                           ? 'border-forest-700 bg-forest-50/50 ring-1 ring-forest-700'
                           : 'border-charcoal-200 bg-white hover:border-charcoal-400'
@@ -193,19 +219,19 @@ export default function CheckoutPage() {
                     >
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <p className="font-bold text-charcoal-900">{addr.fullName}</p>
+                          <span className="font-bold text-charcoal-900">{addr.fullName}</span>
                           {addr.isDefault && (
                             <span className="text-[10px] bg-forest-100 text-forest-800 px-1.5 py-0.5 rounded font-semibold uppercase">
                               Default
                             </span>
                           )}
                         </div>
-                        <p className="text-charcoal-600 leading-snug">{addr.addressLine1}</p>
-                        {addr.addressLine2 && <p className="text-charcoal-500">{addr.addressLine2}</p>}
-                        <p className="text-charcoal-600">{addr.city}, {addr.state} - {addr.postalCode}</p>
-                        <p className="text-charcoal-500 pt-1">Phone: {addr.phone}</p>
+                        <span className="block text-charcoal-600 leading-snug">{addr.addressLine1}</span>
+                        {addr.addressLine2 && <span className="block text-charcoal-500">{addr.addressLine2}</span>}
+                        <span className="block text-charcoal-600">{addr.city}, {addr.state} - {addr.postalCode}</span>
+                        <span className="block text-charcoal-500 pt-1">Phone: {addr.phone}</span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -221,7 +247,7 @@ export default function CheckoutPage() {
               <h2 className="text-base font-bold text-charcoal-900">Payment Method</h2>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="group" aria-label="Payment method">
               {[
                 { id: 'CARD', label: 'Debit / Credit Card' },
                 { id: 'UPI', label: 'Instant UPI (GPay / PhonePe)' },
@@ -232,6 +258,7 @@ export default function CheckoutPage() {
                   key={method.id}
                   type="button"
                   onClick={() => setPaymentMethod(method.id)}
+                  aria-pressed={paymentMethod === method.id}
                   className={`p-3.5 rounded-xl border text-xs font-semibold text-center transition ${
                     paymentMethod === method.id
                       ? 'border-forest-700 bg-forest-50/70 text-forest-900 ring-1 ring-forest-700'
@@ -254,10 +281,11 @@ export default function CheckoutPage() {
                     Test genuine success or failure flows without actual card credentials
                   </p>
                 </div>
-                <div className="inline-flex rounded-lg border border-charcoal-200 bg-white p-0.5 text-xs font-semibold">
+                <div className="inline-flex rounded-lg border border-charcoal-200 bg-white p-0.5 text-xs font-semibold" role="group" aria-label="Simulated payment result">
                   <button
                     type="button"
                     onClick={() => setPaymentSimulation('SUCCESS')}
+                    aria-pressed={paymentSimulation === 'SUCCESS'}
                     className={`px-3 py-1 rounded-md transition ${
                       paymentSimulation === 'SUCCESS'
                         ? 'bg-emerald-600 text-white font-bold'
@@ -269,6 +297,7 @@ export default function CheckoutPage() {
                   <button
                     type="button"
                     onClick={() => setPaymentSimulation('FAILED')}
+                    aria-pressed={paymentSimulation === 'FAILED'}
                     className={`px-3 py-1 rounded-md transition ${
                       paymentSimulation === 'FAILED'
                         ? 'bg-red-600 text-white font-bold'
@@ -283,8 +312,9 @@ export default function CheckoutPage() {
 
             {/* Delivery Notes */}
             <div className="space-y-1.5 pt-2">
-              <label className="text-xs font-semibold text-charcoal-700">Delivery Instructions / Notes (Optional)</label>
+              <label htmlFor="checkout-notes" className="text-xs font-semibold text-charcoal-700">Delivery Instructions / Notes (Optional)</label>
               <textarea
+                id="checkout-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
@@ -368,8 +398,9 @@ export default function CheckoutPage() {
       >
         <form onSubmit={handleCreateAddress} className="space-y-4 text-xs">
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
+            <label htmlFor="address-full-name" className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
             <input
+              id="address-full-name"
               type="text"
               required
               value={newAddress.fullName}
@@ -380,8 +411,9 @@ export default function CheckoutPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Address Line 1</label>
+            <label htmlFor="address-line-1" className="font-semibold text-charcoal-700 block mb-1">Address Line 1</label>
             <input
+              id="address-line-1"
               type="text"
               required
               value={newAddress.addressLine1}
@@ -392,8 +424,9 @@ export default function CheckoutPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Address Line 2 (Optional)</label>
+            <label htmlFor="address-line-2" className="font-semibold text-charcoal-700 block mb-1">Address Line 2 (Optional)</label>
             <input
+              id="address-line-2"
               type="text"
               value={newAddress.addressLine2}
               onChange={(e) => setNewAddress({ ...newAddress, addressLine2: e.target.value })}
@@ -404,8 +437,9 @@ export default function CheckoutPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">City</label>
+              <label htmlFor="address-city" className="font-semibold text-charcoal-700 block mb-1">City</label>
               <input
+                id="address-city"
                 type="text"
                 required
                 value={newAddress.city}
@@ -415,8 +449,9 @@ export default function CheckoutPage() {
               />
             </div>
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">State</label>
+              <label htmlFor="address-state" className="font-semibold text-charcoal-700 block mb-1">State</label>
               <input
+                id="address-state"
                 type="text"
                 required
                 value={newAddress.state}
@@ -429,8 +464,9 @@ export default function CheckoutPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">Postal Code (PIN)</label>
+              <label htmlFor="address-postal-code" className="font-semibold text-charcoal-700 block mb-1">Postal Code (PIN)</label>
               <input
+                id="address-postal-code"
                 type="text"
                 required
                 value={newAddress.postalCode}
@@ -440,8 +476,9 @@ export default function CheckoutPage() {
               />
             </div>
             <div>
-              <label className="font-semibold text-charcoal-700 block mb-1">Phone Number</label>
+              <label htmlFor="address-phone" className="font-semibold text-charcoal-700 block mb-1">Phone Number</label>
               <input
+                id="address-phone"
                 type="text"
                 required
                 value={newAddress.phone}

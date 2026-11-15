@@ -94,6 +94,20 @@ describe('Admin APIs', () => {
       });
     expect(invalid.status).toBe(400);
 
+    const unsafeImage = await request(app)
+      .post('/api/admin/products')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Unsafe image scheme',
+        slug: `unsafe-image-${suffix}`,
+        description: 'Image URLs must use HTTP or HTTPS',
+        basePrice: 10,
+        categoryId: activeCategory.id,
+        images: ['javascript:alert(1)'],
+        sku: `UNSAFE-IMAGE-${suffix}`,
+      });
+    expect(unsafeImage.status).toBe(400);
+
     const created = await request(app)
       .post('/api/admin/products')
       .set('Authorization', `Bearer ${adminToken}`)

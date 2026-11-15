@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
@@ -6,26 +7,39 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding CartNest database...');
 
-  // Clean existing data in reverse dependency order
-  await prisma.auditLog.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.orderItem.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.cartItem.deleteMany();
-  await prisma.cart.deleteMany();
-  await prisma.productVariant.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.address.deleteMany();
-  await prisma.user.deleteMany();
+  const [users, categories, products, orders, addresses, carts, auditLogs] = await Promise.all([
+    prisma.user.count(),
+    prisma.category.count(),
+    prisma.product.count(),
+    prisma.order.count(),
+    prisma.address.count(),
+    prisma.cart.count(),
+    prisma.auditLog.count(),
+  ]);
+  if ([users, categories, products, orders, addresses, carts, auditLogs].some((count) => count > 0)) {
+    throw new Error('Refusing to seed a non-empty database. Seeding is for a new, disposable database only.');
+  }
+
+  const requiredDemoPassword = (key) => {
+    const value = process.env[key];
+    if (!value || value.length < 12 || /^(change|replace|your)[-_]/i.test(value)) {
+      throw new Error(`${key} must be set to a unique local-only password of at least 12 characters.`);
+    }
+    return value;
+  };
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const customerEmail = process.env.DEMO_CUSTOMER_EMAIL;
+  if (!adminEmail || !customerEmail || adminEmail.toLowerCase() === customerEmail.toLowerCase()) {
+    throw new Error('Set distinct ADMIN_EMAIL and DEMO_CUSTOMER_EMAIL values before seeding.');
+  }
 
   // 1. Users
-  const adminPasswordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'AdminPassword123!', 10);
-  const customerPasswordHash = await bcrypt.hash(process.env.DEMO_CUSTOMER_PASSWORD || 'CustomerPassword123!', 10);
+  const adminPasswordHash = await bcrypt.hash(requiredDemoPassword('ADMIN_PASSWORD'), 10);
+  const customerPasswordHash = await bcrypt.hash(requiredDemoPassword('DEMO_CUSTOMER_PASSWORD'), 10);
 
   const admin = await prisma.user.create({
     data: {
-      email: process.env.ADMIN_EMAIL || 'admin@cartnest.com',
+      email: adminEmail.toLowerCase().trim(),
       passwordHash: adminPasswordHash,
       name: 'Admin Supervisor',
       role: 'ADMIN',
@@ -35,7 +49,7 @@ async function main() {
 
   const customer = await prisma.user.create({
     data: {
-      email: process.env.DEMO_CUSTOMER_EMAIL || 'customer@cartnest.com',
+      email: customerEmail.toLowerCase().trim(),
       passwordHash: customerPasswordHash,
       name: 'Aarav Sharma',
       role: 'CUSTOMER',

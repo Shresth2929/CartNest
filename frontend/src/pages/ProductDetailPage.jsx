@@ -4,6 +4,7 @@ import { ShoppingBag, Check, ShieldCheck, Truck, RotateCcw, ArrowLeft, PackageCh
 import { api } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { DetailSkeleton } from '../components/common/Skeleton';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 
 export default function ProductDetailPage() {
   const { slug } = useParams();
@@ -109,7 +110,7 @@ export default function ProductDetailPage() {
         {/* Images Gallery */}
         <div className="lg:col-span-7 space-y-4">
           <div className="aspect-square sm:aspect-[4/3] rounded-3xl overflow-hidden bg-cream-100 border border-charcoal-200 shadow-xs">
-            <img
+            <ImageWithFallback
               src={selectedImage || product.images?.[0]}
               alt={product.name}
               className="w-full h-full object-cover object-center"
@@ -123,11 +124,13 @@ export default function ProductDetailPage() {
                 <button
                   key={idx}
                   onClick={() => setSelectedImage(img)}
+                  aria-label={`View product image ${idx + 1}`}
+                  aria-pressed={selectedImage === img}
                   className={`w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 transition ${
                     selectedImage === img ? 'border-forest-700 scale-95' : 'border-transparent hover:border-charcoal-300'
                   }`}
                 >
-                  <img src={img} alt={`Angle ${idx + 1}`} className="w-full h-full object-cover" />
+                  <ImageWithFallback src={img} alt={`Angle ${idx + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -194,6 +197,7 @@ export default function ProductDetailPage() {
                         if (quantity > variant.stock) setQuantity(Math.max(1, variant.stock));
                       }}
                       disabled={varOutOfStock}
+                      aria-pressed={isSelected}
                       className={`px-3.5 py-2.5 rounded-xl border text-left text-xs font-medium transition flex flex-col justify-between ${
                         isSelected
                           ? 'border-forest-700 bg-forest-50/70 text-forest-900 font-bold ring-1 ring-forest-700'
@@ -223,6 +227,7 @@ export default function ProductDetailPage() {
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   disabled={quantity <= 1 || isOutOfStock}
+                  aria-label="Decrease quantity"
                   className="px-3 py-1.5 hover:bg-cream-100 disabled:opacity-40 transition font-bold text-sm text-charcoal-700"
                 >
                   -
@@ -233,6 +238,7 @@ export default function ProductDetailPage() {
                 <button
                   onClick={() => setQuantity((q) => Math.min(currentStock, q + 1))}
                   disabled={quantity >= currentStock || isOutOfStock}
+                  aria-label="Increase quantity"
                   className="px-3 py-1.5 hover:bg-cream-100 disabled:opacity-40 transition font-bold text-sm text-charcoal-700"
                 >
                   +
@@ -243,6 +249,7 @@ export default function ProductDetailPage() {
             <button
               onClick={handleAddToCart}
               disabled={isOutOfStock || isAdding}
+              aria-busy={isAdding}
               className={`w-full py-4 rounded-full font-semibold text-sm transition shadow-md flex items-center justify-center gap-2 ${
                 isOutOfStock
                   ? 'bg-charcoal-200 text-charcoal-500 cursor-not-allowed'

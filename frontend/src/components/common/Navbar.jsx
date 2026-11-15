@@ -59,6 +59,7 @@ export default function Navbar() {
             <input
               type="text"
               value={searchTerm}
+              aria-label="Search products"
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search handcrafted stands, ceramics, diffusers..."
               className="w-full bg-cream-50 text-charcoal-800 placeholder-charcoal-400 text-sm rounded-full pl-10 pr-4 py-2 border border-charcoal-200 focus:outline-none focus:border-forest-600 focus:bg-white transition"
@@ -98,6 +99,9 @@ export default function Navbar() {
               <div className="relative">
                 <button
                   onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                  aria-expanded={isUserDropdownOpen}
+                  aria-haspopup="menu"
+                  aria-label={`Account menu for ${user?.name || 'customer'}`}
                   className="flex items-center gap-2 p-1.5 pl-2.5 rounded-full border border-charcoal-200 hover:border-forest-600 transition bg-cream-50"
                 >
                   <span className="text-xs font-semibold text-charcoal-800 max-w-[100px] truncate">
@@ -167,6 +171,7 @@ export default function Navbar() {
             {/* Mobile Hamburger Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-expanded={isMobileMenuOpen}
               className="lg:hidden p-2 text-charcoal-700 hover:bg-cream-100 rounded-lg transition"
               aria-label="Toggle menu"
             >
@@ -182,6 +187,7 @@ export default function Navbar() {
               <input
                 type="text"
                 value={searchTerm}
+                aria-label="Search products"
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search products..."
                 className="w-full bg-cream-50 text-charcoal-800 text-sm rounded-xl pl-10 pr-4 py-2.5 border border-charcoal-200"

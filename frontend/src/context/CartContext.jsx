@@ -7,27 +7,33 @@ const CartContext = createContext(null);
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { isAuthenticated, isAdmin } = useAuth();
   const { showToast } = useToast();
 
   const fetchCart = useCallback(async () => {
     if (!isAuthenticated || isAdmin) {
       setCart(null);
+      setError(null);
+      setIsLoading(false);
       return;
     }
+    setError(null);
     setIsLoading(true);
     try {
       const res = await api.cart.get();
       if (res.success && res.data) {
         setCart(res.data);
+        setError(null);
       }
     } catch (err) {
-      console.warn('Failed to load cart:', err.message);
+      setError(err.message);
+      showToast(err.message, 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, isAdmin]);
+  }, [isAuthenticated, isAdmin, showToast]);
 
   useEffect(() => {
     fetchCart();
@@ -103,6 +109,7 @@ export function CartProvider({ children }) {
         subtotal: cart?.subtotal || 0,
         hasUnavailableItems: cart?.hasUnavailableItems || false,
         isLoading,
+        error,
         fetchCart,
         addToCart,
         updateQuantity,

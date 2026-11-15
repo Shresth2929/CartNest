@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Compass, ShieldCheck, Leaf } from 'lucide-react';
 import { api } from '../services/api';
 import ProductGrid from '../components/product/ProductGrid';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 import { useToast } from '../context/ToastContext';
 
 export default function HomePage() {
@@ -72,7 +73,7 @@ export default function HomePage() {
           <div className="lg:col-span-5 relative">
             <div className="aspect-[4/3] sm:aspect-square rounded-3xl overflow-hidden shadow-xl border border-charcoal-200 bg-white">
               {heroImage ? (
-                <img
+                <ImageWithFallback
                   src={heroImage}
                   alt={heroProduct.name}
                   className="w-full h-full object-cover object-center"
@@ -130,8 +131,8 @@ export default function HomePage() {
               to={`/shop?category=${cat.slug}`}
               className="group relative rounded-2xl overflow-hidden aspect-[4/5] bg-charcoal-900 shadow-sm border border-charcoal-100"
             >
-              <img
-                src={cat.imageUrl || 'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=800&q=80'}
+              <ImageWithFallback
+                src={cat.imageUrl}
                 alt={cat.name}
                 className="w-full h-full object-cover opacity-85 group-hover:scale-105 group-hover:opacity-75 transition duration-500"
               />

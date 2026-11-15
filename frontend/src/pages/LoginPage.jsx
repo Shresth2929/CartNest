@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getInternalRedirect } from '../utils/navigation';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = getInternalRedirect(searchParams.get('redirect'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,10 +38,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Email Address</label>
+            <label htmlFor="login-email" className="font-semibold text-charcoal-700 block mb-1">Email Address</label>
             <div className="relative">
               <input
                 type="email"
+                id="login-email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -52,10 +54,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Password</label>
+            <label htmlFor="login-password" className="font-semibold text-charcoal-700 block mb-1">Password</label>
             <div className="relative">
               <input
                 type="password"
+                id="login-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, ArrowRight, ShoppingBag, ShieldCheck, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 
 export default function CartPage() {
-  const { cart, itemCount, subtotal, hasUnavailableItems, isLoading, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, itemCount, subtotal, hasUnavailableItems, isLoading, error, fetchCart, updateQuantity, removeFromCart, clearCart } = useCart();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -31,6 +32,28 @@ export default function CartPage() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16" role="status" aria-live="polite">
+        <div className="h-8 w-48 bg-cream-200 rounded animate-pulse" />
+        <div className="mt-8 h-40 bg-cream-100 rounded-2xl animate-pulse" />
+        <span className="sr-only">Loading your shopping bag</span>
+      </div>
+    );
+  }
+
+  if (error && !cart) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4" role="alert">
+        <h2 className="text-xl font-bold text-charcoal-900">Your shopping bag could not be loaded</h2>
+        <p className="text-sm text-charcoal-500">{error}</p>
+        <button type="button" onClick={fetchCart} className="px-5 py-2.5 bg-forest-700 text-white rounded-full text-sm font-semibold">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   if (!cart || cart.items.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
@@ -39,7 +62,7 @@ export default function CartPage() {
         </div>
         <h2 className="text-2xl font-bold text-charcoal-900">Your Shopping Bag is Empty</h2>
         <p className="text-sm text-charcoal-500 max-w-sm mx-auto">
-          Explore our collection of oak workspace risers, artisanal coffee pour-overs, and cedar botanicals.
+          Explore the catalogue and find something you will love.
         </p>
         <div className="pt-2">
           <Link
@@ -95,8 +118,8 @@ export default function CartPage() {
             <div key={item.id} className="p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
               {/* Product Thumbnail */}
               <Link to={`/products/${item.productSlug}`} className="w-20 h-20 rounded-xl overflow-hidden bg-cream-100 flex-shrink-0 border border-charcoal-100">
-                <img
-                  src={item.productImage || 'https://images.unsplash.com/photo-1593062096033-9a26b09da705?auto=format&fit=crop&w=400&q=80'}
+                <ImageWithFallback
+                  src={item.productImage}
                   alt={item.productName}
                   className="w-full h-full object-cover"
                 />
@@ -132,6 +155,7 @@ export default function CartPage() {
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
                     disabled={isLoading}
+                    aria-label={`Decrease quantity of ${item.productName}`}
                     className="px-2.5 py-1 text-sm font-bold text-charcoal-600 hover:bg-cream-100 transition"
                   >
                     -
@@ -142,6 +166,7 @@ export default function CartPage() {
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
                     disabled={isLoading || item.quantity >= item.availableStock}
+                    aria-label={`Increase quantity of ${item.productName}`}
                     className="px-2.5 py-1 text-sm font-bold text-charcoal-600 hover:bg-cream-100 transition disabled:opacity-30"
                   >
                     +
@@ -150,6 +175,7 @@ export default function CartPage() {
 
                 <button
                   onClick={() => removeFromCart(item.id)}
+                  aria-label={`Remove ${item.productName} from shopping bag`}
                   className="p-2 text-charcoal-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
                   title="Remove item"
                 >

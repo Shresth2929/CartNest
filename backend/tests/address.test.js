@@ -30,12 +30,10 @@ describe('Customer Address APIs', () => {
   });
 
   afterAll(async () => {
-    try {
-      await prisma.address.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
-      await prisma.cart.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
-      await prisma.auditLog.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
-      await prisma.user.deleteMany({ where: { id: { in: [userAId, userBId] } } });
-    } catch (e) {}
+    await prisma.address.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
+    await prisma.cart.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
+    await prisma.auditLog.deleteMany({ where: { userId: { in: [userAId, userBId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [userAId, userBId] } } });
   });
 
   it('should reject address access without authentication', async () => {

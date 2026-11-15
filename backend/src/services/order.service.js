@@ -13,6 +13,19 @@ const VALID_TRANSITIONS = {
 };
 
 class OrderService {
+  replayIdempotencyRecord(record, userId, requestHash) {
+    if (record.userId !== userId) {
+      throw ApiError.forbidden('Idempotency key belongs to another user');
+    }
+    if (record.requestHash !== requestHash) {
+      throw ApiError.conflict('Same idempotency key used with different request payload');
+    }
+    return {
+      isIdempotentReplay: true,
+      ...record.responseBody,
+    };
+  }
+
   /**
    * Generates a request hash for idempotency checking
    */
@@ -33,17 +46,7 @@ class OrderService {
       });
 
       if (existingIdempotency) {
-        if (existingIdempotency.userId !== userId) {
-          throw ApiError.forbidden('Idempotency key belongs to another user');
-        }
-        if (existingIdempotency.requestHash !== requestHash) {
-          throw ApiError.conflict('Same idempotency key used with different request payload');
-        }
-        // Return original stored response
-        return {
-          isIdempotentReplay: true,
-          ...existingIdempotency.responseBody,
-        };
+        return this.replayIdempotencyRecord(existingIdempotency, userId, requestHash);
       }
     }
 
@@ -70,6 +73,14 @@ class OrderService {
     });
 
     if (!cart || cart.items.length === 0) {
+      if (idempotencyKey) {
+        const existingIdempotency = await prisma.idempotencyRecord.findUnique({
+          where: { key: idempotencyKey },
+        });
+        if (existingIdempotency) {
+          return this.replayIdempotencyRecord(existingIdempotency, userId, requestHash);
+        }
+      }
       throw ApiError.badRequest('Your shopping cart is empty');
     }
 
@@ -90,189 +101,201 @@ class OrderService {
     }
 
     // 5. Execute transactional checkout with atomic conditional inventory deductions
-    const orderResult = await prisma.$transaction(async (tx) => {
-      let subtotal = 0;
-      const orderItemsToCreate = [];
-      const inventoryMovements = [];
+    let orderResult;
+    try {
+      orderResult = await prisma.$transaction(async (tx) => {
+        let subtotal = 0;
+        const orderItemsToCreate = [];
+        const inventoryMovements = [];
 
-      // Revalidate each product and execute atomic conditional stock update
-      for (const item of cart.items) {
-        // Fetch fresh product & variant record to ensure active and current price
-        const freshProduct = await tx.product.findUnique({
-          where: { id: item.productId },
-          include: { category: { select: { isActive: true } } },
-        });
-
-        if (!freshProduct || !freshProduct.isActive || !freshProduct.category.isActive) {
-          throw ApiError.badRequest(`Product "${item.product.name}" is no longer active`);
-        }
-
-        let freshVariant = null;
-        if (item.variantId) {
-          freshVariant = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
+        // Revalidate each product and execute atomic conditional stock update
+        for (const item of cart.items) {
+          // Fetch fresh product & variant record to ensure active and current price
+          const freshProduct = await tx.product.findUnique({
+            where: { id: item.productId },
+            include: { category: { select: { isActive: true } } },
           });
-          if (!freshVariant) {
-            throw ApiError.badRequest(`Variant for "${item.product.name}" is no longer available`);
+
+          if (!freshProduct || !freshProduct.isActive || !freshProduct.category.isActive) {
+            throw ApiError.badRequest(`Product "${item.product.name}" is no longer active`);
           }
 
-          // Atomic conditional stock decrement for variant
-          // Fails immediately if stock < requested quantity
-          const updatedVariant = await tx.$queryRaw`
-            UPDATE "ProductVariant"
+          let freshVariant = null;
+          if (item.variantId) {
+            freshVariant = await tx.productVariant.findUnique({
+              where: { id: item.variantId },
+            });
+            if (!freshVariant) {
+              throw ApiError.badRequest(`Variant for "${item.product.name}" is no longer available`);
+            }
+
+            // Atomic conditional stock decrement for variant
+            // Fails immediately if stock < requested quantity
+            const updatedVariant = await tx.$queryRaw`
+              UPDATE "ProductVariant"
+              SET stock = stock - ${item.quantity}
+              WHERE id = ${item.variantId} AND stock >= ${item.quantity}
+              RETURNING stock
+            `;
+            if (updatedVariant.length === 0) {
+              throw ApiError.badRequest(
+                `Insufficient inventory for variant "${freshVariant.name}". Available stock: ${freshVariant.stock}, Requested: ${item.quantity}`
+              );
+            }
+            inventoryMovements.push({
+              productId: freshProduct.id,
+              variantId: freshVariant.id,
+              actorId: userId,
+              delta: -item.quantity,
+              stockAfter: updatedVariant[0].stock,
+              reason: 'Order checkout',
+            });
+          }
+
+          // Atomic conditional stock decrement for product
+          const updatedProduct = await tx.$queryRaw`
+            UPDATE "Product"
             SET stock = stock - ${item.quantity}
-            WHERE id = ${item.variantId} AND stock >= ${item.quantity}
+            WHERE id = ${item.productId} AND stock >= ${item.quantity}
             RETURNING stock
           `;
-          if (updatedVariant.length === 0) {
+          if (updatedProduct.length === 0) {
             throw ApiError.badRequest(
-              `Insufficient inventory for variant "${freshVariant.name}". Available stock: ${freshVariant.stock}, Requested: ${item.quantity}`
+              `Insufficient inventory for product "${freshProduct.name}". Available stock: ${freshProduct.stock}, Requested: ${item.quantity}`
             );
           }
           inventoryMovements.push({
             productId: freshProduct.id,
-            variantId: freshVariant.id,
             actorId: userId,
             delta: -item.quantity,
-            stockAfter: updatedVariant[0].stock,
+            stockAfter: updatedProduct[0].stock,
             reason: 'Order checkout',
+          });
+
+          // Calculate immutable price snapshot from database (never trust client)
+          const basePrice = Number(freshProduct.basePrice);
+          const adjustment = freshVariant ? Number(freshVariant.priceAdjustment) : 0;
+          const unitPrice = Number((basePrice + adjustment).toFixed(2));
+          const itemSubtotal = Number((unitPrice * item.quantity).toFixed(2));
+
+          subtotal += itemSubtotal;
+
+          orderItemsToCreate.push({
+            productId: freshProduct.id,
+            variantId: freshVariant ? freshVariant.id : null,
+            productName: freshProduct.name,
+            variantName: freshVariant ? freshVariant.name : null,
+            unitPrice,
+            quantity: item.quantity,
+            subtotal: itemSubtotal,
           });
         }
 
-        // Atomic conditional stock decrement for product
-        const updatedProduct = await tx.$queryRaw`
-          UPDATE "Product"
-          SET stock = stock - ${item.quantity}
-          WHERE id = ${item.productId} AND stock >= ${item.quantity}
-          RETURNING stock
-        `;
-        if (updatedProduct.length === 0) {
-          throw ApiError.badRequest(
-            `Insufficient inventory for product "${freshProduct.name}". Available stock: ${freshProduct.stock}, Requested: ${item.quantity}`
-          );
-        }
-        inventoryMovements.push({
-          productId: freshProduct.id,
-          actorId: userId,
-          delta: -item.quantity,
-          stockAfter: updatedProduct[0].stock,
-          reason: 'Order checkout',
-        });
+        // Compute Order Totals
+        subtotal = Number(subtotal.toFixed(2));
+        const tax = Number((subtotal * 0.18).toFixed(2)); // 18% GST
+        const shippingFee = subtotal >= 1500 ? 0.00 : 99.00; // Free shipping over ₹1500
+        const discount = 0.00;
+        const total = Number((subtotal + tax + shippingFee - discount).toFixed(2));
 
-        // Calculate immutable price snapshot from database (never trust client)
-        const basePrice = Number(freshProduct.basePrice);
-        const adjustment = freshVariant ? Number(freshVariant.priceAdjustment) : 0;
-        const unitPrice = Number((basePrice + adjustment).toFixed(2));
-        const itemSubtotal = Number((unitPrice * item.quantity).toFixed(2));
+        // Human-readable Order Number
+        const orderNumber = `CN-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        subtotal += itemSubtotal;
-
-        orderItemsToCreate.push({
-          productId: freshProduct.id,
-          variantId: freshVariant ? freshVariant.id : null,
-          productName: freshProduct.name,
-          variantName: freshVariant ? freshVariant.name : null,
-          unitPrice,
-          quantity: item.quantity,
-          subtotal: itemSubtotal,
-        });
-      }
-
-      // Compute Order Totals
-      subtotal = Number(subtotal.toFixed(2));
-      const tax = Number((subtotal * 0.18).toFixed(2)); // 18% GST
-      const shippingFee = subtotal >= 1500 ? 0.00 : 99.00; // Free shipping over ₹1500
-      const discount = 0.00;
-      const total = Number((subtotal + tax + shippingFee - discount).toFixed(2));
-
-      // Human-readable Order Number
-      const orderNumber = `CN-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      // Create Order
-      const newOrder = await tx.order.create({
-        data: {
-          orderNumber,
-          userId,
-          status: 'PAID', // Simulated payment succeeded, order confirmed & paid
-          subtotal,
-          tax,
-          shippingFee,
-          discount,
-          total,
-          shippingAddressId: address.id,
-          idempotencyKey: idempotencyKey || null,
-          notes: payload.notes || null,
-          items: {
-            create: orderItemsToCreate,
-          },
-          payments: {
-            create: [
-              {
-                paymentMethod: payload.paymentMethod || 'CARD',
-                amount: total,
-                status: 'SUCCESS',
-                transactionId: `TXN-SIM-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        // Create Order
+        const newOrder = await tx.order.create({
+          data: {
+            orderNumber,
+            userId,
+            status: 'PAID', // Simulated payment succeeded, order confirmed & paid
+            subtotal,
+            tax,
+            shippingFee,
+            discount,
+            total,
+            shippingAddressId: address.id,
+            idempotencyKey: idempotencyKey || null,
+            notes: payload.notes || null,
+            items: {
+              create: orderItemsToCreate,
+            },
+            payments: {
+              create: [
+                {
+                  paymentMethod: payload.paymentMethod || 'CARD',
+                  amount: total,
+                  status: 'SUCCESS',
+                  transactionId: `TXN-SIM-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+                },
+              ],
+            },
+            statusHistory: {
+              create: {
+                toStatus: 'PAID',
+                actorId: userId,
+                note: 'Payment successful',
               },
-            ],
-          },
-          statusHistory: {
-            create: {
-              toStatus: 'PAID',
-              actorId: userId,
-              note: 'Payment successful',
             },
           },
-        },
-        include: {
-          items: true,
-          payments: true,
-          shippingAddress: true,
-        },
-      });
-
-      await tx.inventoryMovement.createMany({
-        data: inventoryMovements.map((movement) => ({
-          ...movement,
-          orderId: newOrder.id,
-        })),
-      });
-
-      // Clear Customer Cart atomically
-      await tx.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
-
-      // Record Audit Log
-      await tx.auditLog.create({
-        data: {
-          userId,
-          action: 'ORDER_PLACED',
-          entityType: 'ORDER',
-          entityId: newOrder.id,
-          metadata: {
-            orderNumber: newOrder.orderNumber,
-            total,
-            itemsCount: orderItemsToCreate.length,
-            paymentStatus: 'SUCCESS',
+          include: {
+            items: true,
+            payments: true,
+            shippingAddress: true,
           },
-        },
-      });
+        });
 
-      return newOrder;
-    });
+        if (idempotencyKey) {
+          await tx.idempotencyRecord.create({
+            data: {
+              key: idempotencyKey,
+              userId,
+              requestHash,
+              statusCode: 201,
+              responseBody: JSON.parse(JSON.stringify(newOrder)),
+              orderId: newOrder.id,
+            },
+          });
+        }
 
-    // 6. Record Idempotency Result if idempotencyKey was provided
-    if (idempotencyKey) {
-      await prisma.idempotencyRecord.create({
-        data: {
-          key: idempotencyKey,
-          userId,
-          requestHash,
-          statusCode: 201,
-          responseBody: orderResult,
-          orderId: orderResult.id,
-        },
+        await tx.inventoryMovement.createMany({
+          data: inventoryMovements.map((movement) => ({
+            ...movement,
+            orderId: newOrder.id,
+          })),
+        });
+
+        // Clear Customer Cart atomically
+        await tx.cartItem.deleteMany({
+          where: { cartId: cart.id },
+        });
+
+        // Record Audit Log
+        await tx.auditLog.create({
+          data: {
+            userId,
+            action: 'ORDER_PLACED',
+            entityType: 'ORDER',
+            entityId: newOrder.id,
+            metadata: {
+              orderNumber: newOrder.orderNumber,
+              total,
+              itemsCount: orderItemsToCreate.length,
+              paymentStatus: 'SUCCESS',
+            },
+          },
+        });
+
+        return newOrder;
       });
+    } catch (error) {
+      if (idempotencyKey && error.code === 'P2002') {
+        const existingIdempotency = await prisma.idempotencyRecord.findUnique({
+          where: { key: idempotencyKey },
+        });
+        if (existingIdempotency) {
+          return this.replayIdempotencyRecord(existingIdempotency, userId, requestHash);
+        }
+      }
+      throw error;
     }
 
     return orderResult;

@@ -1,10 +1,18 @@
 const orderService = require('../services/order.service');
 const { sendSuccess } = require('../utils/response');
+const ApiError = require('../utils/apiError');
 
 class OrderController {
   async checkout(req, res, next) {
     try {
-      const idempotencyKey = req.headers['idempotency-key'] || req.body.idempotencyKey || null;
+      const idempotencyKey = req.get('Idempotency-Key') || null;
+      if (idempotencyKey && (
+        idempotencyKey.length > 200 ||
+        idempotencyKey.trim() !== idempotencyKey ||
+        /[\u0000-\u001f\u007f]/.test(idempotencyKey)
+      )) {
+        throw ApiError.badRequest('Idempotency-Key must be 1–200 printable characters.');
+      }
       const order = await orderService.checkout(req.user.id, req.body, idempotencyKey);
 
       const statusCode = order.isIdempotentReplay ? 200 : 201;

@@ -1,3 +1,4 @@
+const { clientUrl } = require('./config/env');
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -9,12 +10,13 @@ const { setupSwagger } = require('./config/swagger');
 const app = express();
 
 // Middlewares
+app.disable('x-powered-by');
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: clientUrl,
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieParser());
 
 // Setup Swagger UI Documentation at /api/docs
@@ -37,10 +39,12 @@ app.get('/api/health', async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Database health check failed');
+    }
+    res.status(503).json({
       status: 'unhealthy',
       database: 'disconnected',
-      error: error.message,
     });
   }
 });

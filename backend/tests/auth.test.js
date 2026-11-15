@@ -1,4 +1,5 @@
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../src/app');
 const prisma = require('../src/config/prisma');
 
@@ -13,17 +14,12 @@ describe('Authentication & Security APIs', () => {
   let authToken = '';
 
   afterAll(async () => {
-    // Clean up created test user
-    try {
-      const user = await prisma.user.findUnique({ where: { email: testUser.email } });
-      if (user) {
-        await prisma.cartItem.deleteMany({ where: { cart: { userId: user.id } } });
-        await prisma.cart.deleteMany({ where: { userId: user.id } });
-        await prisma.auditLog.deleteMany({ where: { userId: user.id } });
-        await prisma.user.delete({ where: { id: user.id } });
-      }
-    } catch (e) {
-      // Ignore cleanup error
+    const user = await prisma.user.findUnique({ where: { email: testUser.email } });
+    if (user) {
+      await prisma.cartItem.deleteMany({ where: { cart: { userId: user.id } } });
+      await prisma.cart.deleteMany({ where: { userId: user.id } });
+      await prisma.auditLog.deleteMany({ where: { userId: user.id } });
+      await prisma.user.delete({ where: { id: user.id } });
     }
   });
 
@@ -161,6 +157,21 @@ describe('Authentication & Security APIs', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
+    });
+
+    it('should reject an expired token', async () => {
+      const user = await prisma.user.findUnique({ where: { email: testUser.email } });
+      const expiredToken = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: -1 },
+      );
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${expiredToken}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toContain('expired');
     });
   });
 });

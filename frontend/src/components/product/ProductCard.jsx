@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Check, PackageOpen } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import ImageWithFallback from '../common/ImageWithFallback';
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
@@ -38,7 +39,7 @@ export default function ProductCard({ product }) {
       {/* Image Container */}
       <Link to={`/products/${product.slug}`} className="relative aspect-square overflow-hidden bg-cream-100">
         {defaultImage ? (
-          <img
+          <ImageWithFallback
             src={defaultImage}
             alt={product.name}
             className="w-full h-full object-cover object-center group-hover:scale-105 transition duration-300"
@@ -97,6 +98,8 @@ export default function ProductCard({ product }) {
           <button
             onClick={handleQuickAdd}
             disabled={isOutOfStock || isAdding}
+            aria-label={`Add ${product.name} to shopping bag`}
+            aria-busy={isAdding}
             className={`p-2.5 rounded-xl flex items-center justify-center transition shadow-xs ${
               isOutOfStock
                 ? 'bg-charcoal-100 text-charcoal-400 cursor-not-allowed'

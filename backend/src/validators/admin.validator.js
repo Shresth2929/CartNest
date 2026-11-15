@@ -3,6 +3,10 @@ const { z } = require('zod');
 const uuidSchema = z.string().uuid();
 const pageSchema = z.coerce.number().int().min(1).default(1);
 const limitSchema = z.coerce.number().int().min(1).max(100).default(20);
+const httpUrlSchema = z.string().url().max(2048).refine((value) => {
+  const protocol = new URL(value).protocol;
+  return protocol === 'http:' || protocol === 'https:';
+}, 'URL must use HTTP or HTTPS');
 
 const adminListQuerySchema = z.object({
   page: pageSchema,
@@ -28,7 +32,7 @@ const productFields = {
   description: z.string().trim().min(1).max(5000),
   basePrice: z.coerce.number().finite().positive().max(99999999),
   categoryId: uuidSchema,
-  images: z.array(z.string().url().max(2048)).max(12),
+  images: z.array(httpUrlSchema).max(12),
   sku: z.string().trim().min(1).max(80),
   stock: z.coerce.number().int().min(0),
   isFeatured: z.boolean().default(false),
@@ -59,7 +63,7 @@ const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(100),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),
   description: z.string().trim().max(1000).optional().nullable(),
-  imageUrl: z.string().url().max(2048).optional().nullable(),
+  imageUrl: httpUrlSchema.optional().nullable(),
   isActive: z.boolean().default(true),
 }).strict();
 

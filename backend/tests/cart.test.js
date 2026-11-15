@@ -37,12 +37,10 @@ describe('Persistent Shopping Cart APIs', () => {
   });
 
   afterAll(async () => {
-    try {
-      await prisma.cartItem.deleteMany({ where: { cart: { userId: { in: [user1Id, user2Id] } } } });
-      await prisma.cart.deleteMany({ where: { userId: { in: [user1Id, user2Id] } } });
-      await prisma.auditLog.deleteMany({ where: { userId: { in: [user1Id, user2Id] } } });
-      await prisma.user.deleteMany({ where: { id: { in: [user1Id, user2Id] } } });
-    } catch (e) {}
+    await prisma.cartItem.deleteMany({ where: { cart: { userId: { in: [user1Id, user2Id] } } } });
+    await prisma.cart.deleteMany({ where: { userId: { in: [user1Id, user2Id] } } });
+    await prisma.auditLog.deleteMany({ where: { userId: { in: [user1Id, user2Id] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [user1Id, user2Id] } } });
   });
 
   it('should reject unauthenticated cart access', async () => {

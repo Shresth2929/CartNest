@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Lock, Phone, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getInternalRedirect } from '../utils/navigation';
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = getInternalRedirect(searchParams.get('redirect'));
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,10 +42,11 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
+            <label htmlFor="register-name" className="font-semibold text-charcoal-700 block mb-1">Full Name</label>
             <div className="relative">
               <input
                 type="text"
+                id="register-name"
                 required
                 minLength={2}
                 value={formData.name}
@@ -57,10 +59,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Email Address</label>
+            <label htmlFor="register-email" className="font-semibold text-charcoal-700 block mb-1">Email Address</label>
             <div className="relative">
               <input
                 type="email"
+                id="register-email"
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -72,10 +75,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Password (Min 8 characters)</label>
+            <label htmlFor="register-password" className="font-semibold text-charcoal-700 block mb-1">Password (Min 8 characters)</label>
             <div className="relative">
               <input
                 type="password"
+                id="register-password"
                 required
                 minLength={8}
                 value={formData.password}
@@ -88,10 +92,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="font-semibold text-charcoal-700 block mb-1">Mobile Phone (Optional)</label>
+            <label htmlFor="register-phone" className="font-semibold text-charcoal-700 block mb-1">Mobile Phone (Optional)</label>
             <div className="relative">
               <input
                 type="tel"
+                id="register-phone"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+91 98765 43210"

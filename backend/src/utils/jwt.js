@@ -1,16 +1,14 @@
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'cartnest_secure_jwt_secret_key_student_demo_2026';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const { jwtSecret, jwtExpiresIn } = require('../config/env');
 
 const generateToken = (payload) => {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+  return jwt.sign(payload, jwtSecret, {
+    expiresIn: jwtExpiresIn,
   });
 };
 
 const verifyToken = (token) => {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, jwtSecret);
 };
 
 module.exports = {

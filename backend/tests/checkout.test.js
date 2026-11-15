@@ -69,24 +69,20 @@ describe('Checkout, Transactional Inventory, Idempotency & Order Lifecycle APIs'
   });
 
   afterAll(async () => {
-    try {
-      // Clean up orders, cart items, carts, addresses, and test users
-      const userIds = [customerId, otherCustomerId];
-      await prisma.payment.deleteMany({ where: { order: { userId: { in: userIds } } } });
-      await prisma.orderItem.deleteMany({ where: { order: { userId: { in: userIds } } } });
-      await prisma.order.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.idempotencyRecord.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.cartItem.deleteMany({ where: { cart: { userId: { in: userIds } } } });
-      await prisma.cart.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.address.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
-      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-      if (testProduct) {
-        await prisma.inventoryMovement.deleteMany({ where: { productId: testProduct.id } });
-        await prisma.product.delete({ where: { id: testProduct.id } });
-      }
-    } catch (e) {
-      // Ignore cleanup error
+    // Clean up orders, cart items, carts, addresses, and test users.
+    const userIds = [customerId, otherCustomerId];
+    await prisma.payment.deleteMany({ where: { order: { userId: { in: userIds } } } });
+    await prisma.orderItem.deleteMany({ where: { order: { userId: { in: userIds } } } });
+    await prisma.order.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.idempotencyRecord.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.cartItem.deleteMany({ where: { cart: { userId: { in: userIds } } } });
+    await prisma.cart.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.address.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    if (testProduct) {
+      await prisma.inventoryMovement.deleteMany({ where: { productId: testProduct.id } });
+      await prisma.product.delete({ where: { id: testProduct.id } });
     }
   });
 
@@ -242,6 +238,53 @@ describe('Checkout, Transactional Inventory, Idempotency & Order Lifecycle APIs'
       expect(checkProduct.stock).toBe(3);
     });
 
+    it('should return one successful order for concurrent requests using the same key', async () => {
+      const raceKey = `race-idemp-${Date.now()}`;
+      await request(app)
+        .post('/api/cart/items')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ productId: testProduct.id, quantity: 1 });
+
+      const payload = {
+        shippingAddressId,
+        paymentMethod: 'CARD',
+        paymentSimulation: 'SUCCESS',
+      };
+      const responses = await Promise.all([
+        request(app)
+          .post('/api/checkout')
+          .set('Authorization', `Bearer ${customerToken}`)
+          .set('Idempotency-Key', raceKey)
+          .send(payload),
+        request(app)
+          .post('/api/checkout')
+          .set('Authorization', `Bearer ${customerToken}`)
+          .set('Idempotency-Key', raceKey)
+          .send(payload),
+      ]);
+
+      expect(responses.map((response) => response.status).sort()).toEqual([200, 201]);
+      expect(responses[0].body.data.id).toBe(responses[1].body.data.id);
+      expect(await prisma.order.count({ where: { idempotencyKey: raceKey } })).toBe(1);
+      expect((await prisma.product.findUnique({ where: { id: testProduct.id } })).stock).toBe(2);
+      await prisma.product.update({ where: { id: testProduct.id }, data: { stock: 3 } });
+    });
+
+    it('should not replay an idempotency key owned by another customer', async () => {
+      const res = await request(app)
+        .post('/api/checkout')
+        .set('Authorization', `Bearer ${otherCustomerToken}`)
+        .set('Idempotency-Key', idempotencyKey)
+        .send({
+          shippingAddressId,
+          paymentMethod: 'CARD',
+          paymentSimulation: 'SUCCESS',
+          notes: 'Handle with care',
+        });
+
+      expect(res.status).toBe(403);
+    });
+
     it('should reject request with 409 Conflict if same idempotency key is used with different payload', async () => {
       const res = await request(app)
         .post('/api/checkout')
@@ -256,6 +299,17 @@ describe('Checkout, Transactional Inventory, Idempotency & Order Lifecycle APIs'
       expect(res.status).toBe(409);
       expect(res.body.success).toBe(false);
       expect(res.body.message).toContain('different request payload');
+    });
+
+    it('should reject malformed or oversized idempotency keys', async () => {
+      const res = await request(app)
+        .post('/api/checkout')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .set('Idempotency-Key', 'x'.repeat(201))
+        .send({ shippingAddressId });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Idempotency-Key');
     });
   });
 

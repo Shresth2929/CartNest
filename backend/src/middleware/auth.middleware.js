@@ -84,18 +84,18 @@ const optionalAuth = async (req, res, next) => {
     }
 
     if (token) {
+      let decoded;
       try {
-        const decoded = verifyToken(token);
-        const user = await prisma.user.findUnique({
-          where: { id: decoded.id },
-          select: { id: true, email: true, name: true, role: true },
-        });
-        if (user) {
-          req.user = user;
-        }
-      } catch (e) {
-        // Ignore invalid token for optional auth
+        decoded = verifyToken(token);
+      } catch {
+        return next();
       }
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { id: true, email: true, name: true, role: true },
+      });
+      if (user) req.user = user;
     }
     next();
   } catch (err) {
